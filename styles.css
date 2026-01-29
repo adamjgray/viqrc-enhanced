@@ -220,23 +220,49 @@
 
 .vex-stat-row {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
   padding: 4px 0;
   border-bottom: 1px solid #eee;
+  gap: 8px;
 }
 
 .vex-stat-row:last-child {
   border-bottom: none;
 }
 
+.vex-stats-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0 8px 0;
+  border-bottom: 1px solid #ddd;
+  margin-bottom: 4px;
+}
+
+.vex-stat-header-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  width: 50px;
+  text-align: right;
+}
+
 .vex-stat-label {
   color: #666;
   font-size: 12px;
+  flex: 1;
 }
 
 .vex-stat-value {
   font-weight: 600;
   color: #333;
+  width: 50px;
+  text-align: right;
+}
+
+.vex-stat-global {
+  color: #888;
+  font-weight: 500;
 }
 
 /* Competition items */

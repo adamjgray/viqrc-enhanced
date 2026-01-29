@@ -16,8 +16,8 @@
     useCustomTable: true
   };
 
-  let allData = null;      // All data from API
-  let filteredData = null; // Data after applying filters
+  let gradeData = null;    // All data for selected grade level (global)
+  let filteredData = null; // Data after applying client-side filters
 
   // Build API URL (only post_season and grade_level are server-side params)
   function buildApiUrl() {
@@ -135,9 +135,9 @@
       const data = await response.json();
       console.log('VEX Enhancer - Received', data.length, 'teams from API');
 
-      // Parse and store all data
-      allData = parseApiData(data);
-      console.log('VEX Enhancer - Parsed', allData.length, 'teams');
+      // Parse and store grade-level data
+      gradeData = parseApiData(data);
+      console.log('VEX Enhancer - Parsed', gradeData.length, 'teams for grade level');
 
       // Apply filters and build table
       refreshFilteredData();
@@ -195,11 +195,11 @@
 
   // Apply filters and refresh the table
   function refreshFilteredData() {
-    if (!allData) return;
+    if (!gradeData) return;
 
-    filteredData = applyFilters(allData);
+    filteredData = applyFilters(gradeData);
     rankData(filteredData);
-    console.log('VEX Enhancer - Filtered to', filteredData.length, 'teams');
+    console.log('VEX Enhancer - Filtered to', filteredData.length, 'of', gradeData.length, 'teams');
 
     buildCustomTable();
     updateStats();
@@ -307,8 +307,9 @@
       originalStandings?.parentNode?.insertBefore(container, originalStandings);
     }
 
-    const allScores = filteredData.map(d => d.score);
-    const maxScore = Math.max(...allScores, 1); // Avoid division by zero
+    const filteredScores = filteredData.map(d => d.score);
+    const globalScores = gradeData.map(d => d.score);
+    const maxScore = Math.max(...filteredScores, 1); // Avoid division by zero
     const competitionTeams = getCompetitionTeams();
     const manualTeams = new Set(settings.highlightedTeams.map(t => t.toUpperCase()));
 
@@ -316,7 +317,7 @@
     let html = `
       <div class="vex-table-controls">
         <input type="text" id="vex-table-search" placeholder="Search by team number or name..." />
-        <span class="vex-table-count">${filteredData.length} teams</span>
+        <span class="vex-table-count">${filteredData.length} of ${gradeData.length} teams</span>
       </div>
       <table class="vex-custom-table">
         <thead>
@@ -329,6 +330,7 @@
             <th>Autonomous</th>
             <th>Driver</th>
             <th>Percentile</th>
+            <th>Global %</th>
           </tr>
         </thead>
         <tbody>
@@ -342,7 +344,8 @@
       else if (isCompetition) rowClass = 'vex-competition-row';
       else if (isManual) rowClass = 'vex-highlighted-row';
 
-      const percentile = getPercentile(item.score, allScores);
+      const percentile = getPercentile(item.score, filteredScores);
+      const globalPercentile = getPercentile(item.score, globalScores);
       const barWidth = (item.score / maxScore) * 100;
 
       let barClass = 'vex-bar-low';
@@ -365,6 +368,7 @@
           <td>${item.programming}</td>
           <td>${item.driver}</td>
           <td class="vex-percentile-cell">${percentile}%</td>
+          <td class="vex-percentile-cell">${globalPercentile}%</td>
         </tr>
       `;
     });
@@ -386,67 +390,88 @@
       });
       const countSpan = container.querySelector('.vex-table-count');
       if (countSpan) {
-        countSpan.textContent = filter ? `${visibleCount} of ${filteredData.length} teams` : `${filteredData.length} teams`;
+        countSpan.textContent = filter ? `${visibleCount} of ${filteredData.length} teams` : `${filteredData.length} of ${gradeData.length} teams`;
       }
     });
 
     console.log('VEX Enhancer - Custom table built with', filteredData.length, 'rows');
   }
 
-  // Update statistics
-  function updateStats() {
-    if (!filteredData || filteredData.length === 0) return;
+  // Calculate stats for a dataset
+  function calculateStats(data) {
+    if (!data || data.length === 0) return null;
 
-    const scores = filteredData.map(d => d.score).filter(s => s > 0);
-    const programming = filteredData.map(d => d.programming).filter(s => s > 0);
-    const driver = filteredData.map(d => d.driver).filter(s => s > 0);
+    const scores = data.map(d => d.score).filter(s => s > 0);
+    const programming = data.map(d => d.programming).filter(s => s > 0);
+    const driver = data.map(d => d.driver).filter(s => s > 0);
+
+    if (scores.length === 0) return null;
 
     const sortedScores = [...scores].sort((a, b) => a - b);
 
-    const stats = {
-      count: filteredData.length,
+    return {
+      count: data.length,
       avg: scores.reduce((a, b) => a + b, 0) / scores.length,
       max: Math.max(...scores),
       median: sortedScores[Math.floor(sortedScores.length / 2)],
       avgProgramming: programming.length > 0 ? programming.reduce((a, b) => a + b, 0) / programming.length : 0,
       avgDriver: driver.length > 0 ? driver.reduce((a, b) => a + b, 0) / driver.length : 0
     };
+  }
 
+  // Update statistics
+  function updateStats() {
     const container = document.getElementById('vex-stats-container');
     const scopeElement = document.getElementById('vex-stats-scope');
 
+    const globalStats = calculateStats(gradeData);
+    const filteredStats = calculateStats(filteredData);
+
     if (scopeElement) {
-      scopeElement.textContent = `(all ${stats.count} teams)`;
+      scopeElement.textContent = '';
     }
 
-    if (container) {
-      container.innerHTML = `
-        <div class="vex-stat-row">
-          <span class="vex-stat-label">Teams:</span>
-          <span class="vex-stat-value">${stats.count}</span>
-        </div>
-        <div class="vex-stat-row">
-          <span class="vex-stat-label">Avg Score:</span>
-          <span class="vex-stat-value">${stats.avg.toFixed(1)}</span>
-        </div>
-        <div class="vex-stat-row">
-          <span class="vex-stat-label">Max Score:</span>
-          <span class="vex-stat-value">${stats.max}</span>
-        </div>
-        <div class="vex-stat-row">
-          <span class="vex-stat-label">Median:</span>
-          <span class="vex-stat-value">${stats.median}</span>
-        </div>
-        <div class="vex-stat-row">
-          <span class="vex-stat-label">Avg Autonomous:</span>
-          <span class="vex-stat-value">${stats.avgProgramming.toFixed(1)}</span>
-        </div>
-        <div class="vex-stat-row">
-          <span class="vex-stat-label">Avg Driver:</span>
-          <span class="vex-stat-value">${stats.avgDriver.toFixed(1)}</span>
-        </div>
-      `;
-    }
+    if (!container || !globalStats) return;
+
+    const showFiltered = filteredStats && filteredStats.count !== globalStats.count;
+
+    container.innerHTML = `
+      <div class="vex-stats-header">
+        <span></span>
+        <span class="vex-stat-header-label">${showFiltered ? 'Filtered' : 'All'}</span>
+        ${showFiltered ? '<span class="vex-stat-header-label">Global</span>' : ''}
+      </div>
+      <div class="vex-stat-row">
+        <span class="vex-stat-label">Teams:</span>
+        <span class="vex-stat-value">${showFiltered ? filteredStats.count : globalStats.count}</span>
+        ${showFiltered ? `<span class="vex-stat-value vex-stat-global">${globalStats.count}</span>` : ''}
+      </div>
+      <div class="vex-stat-row">
+        <span class="vex-stat-label">Avg Score:</span>
+        <span class="vex-stat-value">${showFiltered ? filteredStats.avg.toFixed(1) : globalStats.avg.toFixed(1)}</span>
+        ${showFiltered ? `<span class="vex-stat-value vex-stat-global">${globalStats.avg.toFixed(1)}</span>` : ''}
+      </div>
+      <div class="vex-stat-row">
+        <span class="vex-stat-label">Max Score:</span>
+        <span class="vex-stat-value">${showFiltered ? filteredStats.max : globalStats.max}</span>
+        ${showFiltered ? `<span class="vex-stat-value vex-stat-global">${globalStats.max}</span>` : ''}
+      </div>
+      <div class="vex-stat-row">
+        <span class="vex-stat-label">Median:</span>
+        <span class="vex-stat-value">${showFiltered ? filteredStats.median : globalStats.median}</span>
+        ${showFiltered ? `<span class="vex-stat-value vex-stat-global">${globalStats.median}</span>` : ''}
+      </div>
+      <div class="vex-stat-row">
+        <span class="vex-stat-label">Avg Auto:</span>
+        <span class="vex-stat-value">${showFiltered ? filteredStats.avgProgramming.toFixed(1) : globalStats.avgProgramming.toFixed(1)}</span>
+        ${showFiltered ? `<span class="vex-stat-value vex-stat-global">${globalStats.avgProgramming.toFixed(1)}</span>` : ''}
+      </div>
+      <div class="vex-stat-row">
+        <span class="vex-stat-label">Avg Driver:</span>
+        <span class="vex-stat-value">${showFiltered ? filteredStats.avgDriver.toFixed(1) : globalStats.avgDriver.toFixed(1)}</span>
+        ${showFiltered ? `<span class="vex-stat-value vex-stat-global">${globalStats.avgDriver.toFixed(1)}</span>` : ''}
+      </div>
+    `;
   }
 
   // Create the control panel
