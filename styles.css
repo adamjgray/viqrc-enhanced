@@ -524,6 +524,15 @@
   color: white;
 }
 
+.vex-modal-header h2 a {
+  color: white;
+  text-decoration: none;
+}
+
+.vex-modal-header h2 a:hover {
+  text-decoration: underline;
+}
+
 .vex-modal-close {
   background: rgba(255, 255, 255, 0.2);
   border: none;

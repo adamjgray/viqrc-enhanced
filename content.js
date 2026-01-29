@@ -480,7 +480,7 @@
     modal.innerHTML = `
       <div class="vex-modal">
         <div class="vex-modal-header">
-          <h2>${team.team} - ${team.teamName}</h2>
+          <h2><a href="https://www.robotevents.com/teams/VIQRC/${team.team}" target="_blank">${team.team} - ${team.teamName}</a></h2>
           <button class="vex-modal-close">&times;</button>
         </div>
         <div class="vex-modal-body">
