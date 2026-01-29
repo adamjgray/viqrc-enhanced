@@ -1,13 +1,20 @@
-// VEX IQ Skills Standings Enhancer
+// VIQRC Enhanced - Skills Standings
 (function() {
   'use strict';
 
   // Configuration
   const CONFIG = {
+    name: 'VIQRC Enhanced',
     storageKey: 'vex-skills-enhancer-settings',
     eventBaseUrl: 'https://www.robotevents.com/robot-competitions/vex-iq-competition/',
-    apiUrl: 'https://www.robotevents.com/api/seasons/196/skills'
+    apiUrl: 'https://www.robotevents.com/api/seasons/196/skills',
+    debug: false  // Set to true for verbose logging
   };
+
+  // Logging utilities
+  const log = (...args) => console.log(`${CONFIG.name} -`, ...args);
+  const debug = (...args) => CONFIG.debug && console.log(`${CONFIG.name} [DEBUG] -`, ...args);
+  const error = (...args) => console.error(`${CONFIG.name} -`, ...args);
 
   // State
   let settings = {
@@ -37,7 +44,7 @@
     }
 
     const url = `${CONFIG.apiUrl}?${params.join('&')}`;
-    console.log('VIQRC Enhanced - API URL:', url);
+    debug('API URL:', url);
     return url;
   }
 
@@ -61,7 +68,7 @@
 
     const affiliations = getSelectedAffiliations();
 
-    console.log('VIQRC Enhanced - Client filters:', {
+    debug('Client filters:', {
       eventRegion, eventRegionLabel,
       countryId, countryName,
       regionId, regionName,
@@ -134,7 +141,7 @@
   async function fetchAllSkillsData() {
     try {
       const url = buildApiUrl();
-      console.log('VIQRC Enhanced - Fetching skills data from:', url);
+      debug('Fetching skills data from:', url);
 
       const response = await fetch(url);
       if (!response.ok) {
@@ -142,17 +149,17 @@
       }
 
       const data = await response.json();
-      console.log('VIQRC Enhanced - Received', data.length, 'teams from API');
+      debug('Received', data.length, 'teams from API');
 
       // Parse and store grade-level data
       gradeData = parseApiData(data);
-      console.log('VIQRC Enhanced - Parsed', gradeData.length, 'teams for grade level');
+      debug('Parsed', gradeData.length, 'teams for grade level');
 
       // Apply filters and build table
       refreshFilteredData();
 
-    } catch (error) {
-      console.error('VIQRC Enhanced - Failed to fetch API data:', error);
+    } catch (err) {
+      error('Failed to fetch API data:', err);
       document.getElementById('vex-stats-scope').textContent = '(API error)';
     }
   }
@@ -209,7 +216,7 @@
 
     filteredData = applyFilters(gradeData);
     rankData(filteredData);
-    console.log('VIQRC Enhanced - Filtered to', filteredData.length, 'of', gradeData.length, 'teams');
+    debug('Filtered to', filteredData.length, 'of', gradeData.length, 'teams');
 
     buildCustomTable();
     updateStats();
@@ -290,7 +297,7 @@
       }
     });
 
-    console.log('VIQRC Enhanced - Enhanced original table');
+    debug('Enhanced original table');
   }
 
   // Build our custom table
@@ -445,7 +452,7 @@
       });
     });
 
-    console.log('VIQRC Enhanced - Custom table built with', filteredData.length, 'rows');
+    debug('Custom table built with', filteredData.length, 'rows');
   }
 
   // Show team details modal
@@ -917,7 +924,7 @@
     const onServerFilterChange = () => {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        console.log('VIQRC Enhanced - Server filter changed, refetching');
+        debug('Server filter changed, refetching');
         fetchAllSkillsData();
       }, 500);
     };
@@ -926,7 +933,7 @@
     const onClientFilterChange = () => {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        console.log('VIQRC Enhanced - Client filter changed, refreshing');
+        debug('Client filter changed, refreshing');
         refreshFilteredData();
       }, 300);
     };
@@ -959,12 +966,12 @@
     });
 
     observer.observe(table, { childList: true, subtree: true });
-    console.log('VIQRC Enhanced - Observing original table for changes');
+    debug('Observing original table for changes');
   }
 
   // Initialize
   function init() {
-    console.log('VIQRC Enhanced loaded');
+    log('loaded');
 
     loadSettings();
 

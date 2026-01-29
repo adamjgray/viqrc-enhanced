@@ -1,12 +1,19 @@
-// VEX IQ Skills Enhancer - Event Page Script
+// VIQRC Enhanced - Event Page Script
 // This script runs on competition event pages to capture registered teams and show skills data
 (function() {
   'use strict';
 
   const CONFIG = {
+    name: 'VIQRC Enhanced',
     storageKey: 'vex-skills-enhancer-settings',
-    skillsApiUrl: 'https://www.robotevents.com/api/seasons/196/skills'
+    skillsApiUrl: 'https://www.robotevents.com/api/seasons/196/skills',
+    debug: false  // Set to true for verbose logging
   };
+
+  // Logging utilities
+  const log = (...args) => console.log(`${CONFIG.name} -`, ...args);
+  const debug = (...args) => CONFIG.debug && console.log(`${CONFIG.name} [DEBUG] -`, ...args);
+  const error = (...args) => console.error(`${CONFIG.name} -`, ...args);
 
   let eventTeams = [];      // Teams registered for this event
   let skillsData = null;    // Skills data for all teams
@@ -124,12 +131,12 @@
         url += `&grade_level=${encodeURIComponent(gradeLevel)}`;
       }
 
-      console.log('VIQRC Enhanced - Fetching skills data');
+      debug('Fetching skills data');
       const response = await fetch(url);
       if (!response.ok) throw new Error(`API returned ${response.status}`);
 
       const data = await response.json();
-      console.log('VIQRC Enhanced - Received', data.length, 'teams from skills API');
+      debug('Received', data.length, 'teams from skills API');
 
       // Create a map for quick lookup
       skillsData = new Map();
@@ -151,8 +158,8 @@
       });
 
       return true;
-    } catch (error) {
-      console.error('VIQRC Enhanced - Failed to fetch skills data:', error);
+    } catch (err) {
+      error('Failed to fetch skills data:', err);
       return false;
     }
   }
@@ -163,28 +170,28 @@
 
     try {
       const url = `https://www.robotevents.com/api/v2/teams/${teamId}/matches?season%5B%5D=196&per_page=250`;
-      console.log('VIQRC Enhanced - Fetching matches from:', url);
+      debug('Fetching matches from:', url);
       const settings = loadSettings();
       const headers = {};
       if (settings.apiToken) {
         headers['Authorization'] = `Bearer ${settings.apiToken}`;
       }
       const response = await fetch(url, { headers });
-      console.log('VIQRC Enhanced - Response status:', response.status);
+      debug('Response status:', response.status);
       if (!response.ok) {
-        console.log('VIQRC Enhanced - Response not ok, body:', await response.text().catch(() => 'N/A'));
+        debug('Response not ok, body:', await response.text().catch(() => 'N/A'));
         return null;
       }
 
       const data = await response.json();
-      console.log('VIQRC Enhanced - Match data for team', teamId, ':', data);
+      debug('Match data for team', teamId, ':', data);
       const matches = data.data || [];
-      console.log('VIQRC Enhanced - Total matches:', matches.length);
+      debug('Total matches:', matches.length);
 
       // Filter to matches from the last 2 months
       const twoMonthsAgo = new Date();
       twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
-      console.log('VIQRC Enhanced - Filtering matches since:', twoMonthsAgo.toISOString());
+      debug('Filtering matches since:', twoMonthsAgo.toISOString());
 
       const recentMatches = matches.filter(match => {
         if (!match.updated_at) {
@@ -197,7 +204,7 @@
         return isRecent && hasScores;
       });
 
-      console.log('VIQRC Enhanced - Recent scored matches:', recentMatches.length);
+      debug('Recent scored matches:', recentMatches.length);
       if (recentMatches.length === 0) return null;
 
       // Calculate average score for this team across recent matches
@@ -209,7 +216,7 @@
         for (const alliance of match.alliances || []) {
           const teamOnAlliance = alliance.teams?.some(t => t.team?.id === teamId);
           if (teamOnAlliance && alliance.score !== undefined) {
-            console.log('VIQRC Enhanced - Team', teamId, 'on', alliance.color, 'alliance, score:', alliance.score);
+            debug('Team', teamId, 'on', alliance.color, 'alliance, score:', alliance.score);
             totalScore += alliance.score;
             matchCount++;
             break;
@@ -217,15 +224,15 @@
         }
       });
 
-      console.log('VIQRC Enhanced - Match count:', matchCount, 'Total score:', totalScore, 'Avg:', matchCount > 0 ? totalScore / matchCount : 0);
+      debug('Match count:', matchCount, 'Total score:', totalScore, 'Avg:', matchCount > 0 ? totalScore / matchCount : 0);
       if (matchCount === 0) return null;
 
       return {
         average: Math.round(totalScore / matchCount),
         matchCount: matchCount
       };
-    } catch (error) {
-      console.error('VIQRC Enhanced - Failed to fetch match data for team', teamId, error);
+    } catch (err) {
+      error('Failed to fetch match data for team', teamId, err);
       return null;
     }
   }
@@ -438,7 +445,7 @@
       });
     });
 
-    console.log('VIQRC Enhanced - Table built with', mergedData.length, 'teams');
+    debug('Table built with', mergedData.length, 'teams');
   }
 
   // Show team modal
@@ -666,14 +673,14 @@
 
   // Initialize
   async function init() {
-    console.log('VIQRC Enhanced loaded');
+    log('loaded');
 
     // Wait for the page to fully load (including dynamic content)
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     // Extract teams from the page
     eventTeams = extractTeams();
-    console.log('VIQRC Enhanced - Found', eventTeams.length, 'teams on page');
+    debug('Found', eventTeams.length, 'teams on page');
 
     if (eventTeams.length > 0) {
       // Fetch skills data
@@ -689,10 +696,10 @@
           teamId: skillsData.get(team.team)?.teamId || null
         })).filter(t => t.teamId);
 
-        console.log('VIQRC Enhanced - Teams with IDs:', teamsWithIds);
-        console.log('VIQRC Enhanced - Fetching match data for', teamsWithIds.length, 'teams...');
+        debug('Teams with IDs:', teamsWithIds);
+        debug('Fetching match data for', teamsWithIds.length, 'teams...');
         matchAverages = await fetchAllMatchAverages(teamsWithIds);
-        console.log('VIQRC Enhanced - Got match averages for', matchAverages.size, 'teams');
+        debug('Got match averages for', matchAverages.size, 'teams');
 
         // Rebuild table with match averages
         buildEnhancedTable();
