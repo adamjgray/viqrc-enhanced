@@ -162,22 +162,42 @@
     if (!teamId) return null;
 
     try {
-      const response = await fetch(`https://www.robotevents.com/api/v2/teams/${teamId}/matches?per_page=250`);
-      if (!response.ok) return null;
+      const url = `https://www.robotevents.com/api/v2/teams/${teamId}/matches?season%5B%5D=196&per_page=250`;
+      console.log('VEX Event Enhancer - Fetching matches from:', url);
+      const settings = loadSettings();
+      const headers = {};
+      if (settings.apiToken) {
+        headers['Authorization'] = `Bearer ${settings.apiToken}`;
+      }
+      const response = await fetch(url, { headers });
+      console.log('VEX Event Enhancer - Response status:', response.status);
+      if (!response.ok) {
+        console.log('VEX Event Enhancer - Response not ok, body:', await response.text().catch(() => 'N/A'));
+        return null;
+      }
 
       const data = await response.json();
+      console.log('VEX Event Enhancer - Match data for team', teamId, ':', data);
       const matches = data.data || [];
+      console.log('VEX Event Enhancer - Total matches:', matches.length);
 
       // Filter to matches from the last 2 months
       const twoMonthsAgo = new Date();
       twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+      console.log('VEX Event Enhancer - Filtering matches since:', twoMonthsAgo.toISOString());
 
       const recentMatches = matches.filter(match => {
-        if (!match.started) return false;
-        const matchDate = new Date(match.started);
-        return matchDate >= twoMonthsAgo && match.scored;
+        if (!match.updated_at) {
+          return false;
+        }
+        const matchDate = new Date(match.updated_at);
+        const isRecent = matchDate >= twoMonthsAgo;
+        // Check if any alliance has a score (more reliable than scored boolean)
+        const hasScores = match.alliances?.some(a => a.score !== undefined && a.score !== null);
+        return isRecent && hasScores;
       });
 
+      console.log('VEX Event Enhancer - Recent scored matches:', recentMatches.length);
       if (recentMatches.length === 0) return null;
 
       // Calculate average score for this team across recent matches
@@ -185,10 +205,11 @@
       let matchCount = 0;
 
       recentMatches.forEach(match => {
-        // Find which alliance the team was on
+        // Find which alliance the team was on (red or blue)
         for (const alliance of match.alliances || []) {
           const teamOnAlliance = alliance.teams?.some(t => t.team?.id === teamId);
           if (teamOnAlliance && alliance.score !== undefined) {
+            console.log('VEX Event Enhancer - Team', teamId, 'on', alliance.color, 'alliance, score:', alliance.score);
             totalScore += alliance.score;
             matchCount++;
             break;
@@ -196,6 +217,7 @@
         }
       });
 
+      console.log('VEX Event Enhancer - Match count:', matchCount, 'Total score:', totalScore, 'Avg:', matchCount > 0 ? totalScore / matchCount : 0);
       if (matchCount === 0) return null;
 
       return {
@@ -532,10 +554,12 @@
     }
   }
 
-  // Create the capture button
+  // Create the capture button and settings panel
   function createCaptureButton() {
     const competitionId = getCompetitionId();
     if (!competitionId) return;
+
+    const settings = loadSettings();
 
     const button = document.createElement('div');
     button.id = 'vex-capture-button';
@@ -545,12 +569,35 @@
         <span class="vex-capture-text">Capture Teams for Skills Page</span>
       </button>
       <div id="vex-capture-status"></div>
+      <div id="vex-settings-toggle" style="margin-top: 8px; font-size: 12px; color: #666; cursor: pointer;">⚙️ Settings</div>
+      <div id="vex-settings-panel" style="display: none; margin-top: 8px; padding: 12px; background: white; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <label style="display: block; font-size: 12px; color: #333; margin-bottom: 4px;">RobotEvents API Token:</label>
+        <input type="password" id="vex-api-token" placeholder="Enter API token" value="${settings.apiToken || ''}" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; box-sizing: border-box;">
+        <button id="vex-save-token" style="margin-top: 8px; padding: 6px 12px; background: #c41230; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">Save Token</button>
+        <div id="vex-token-status" style="margin-top: 4px; font-size: 11px;"></div>
+        <p style="margin-top: 8px; font-size: 11px; color: #888;">Get your token from <a href="https://www.robotevents.com/api/v2" target="_blank" style="color: #c41230;">robotevents.com/api/v2</a></p>
+      </div>
     `;
 
     document.body.appendChild(button);
 
     document.getElementById('vex-capture-teams').addEventListener('click', () => {
       captureTeams();
+    });
+
+    // Settings toggle
+    document.getElementById('vex-settings-toggle').addEventListener('click', () => {
+      const panel = document.getElementById('vex-settings-panel');
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    });
+
+    // Save token
+    document.getElementById('vex-save-token').addEventListener('click', () => {
+      const token = document.getElementById('vex-api-token').value.trim();
+      const settings = loadSettings();
+      settings.apiToken = token;
+      saveSettings(settings);
+      document.getElementById('vex-token-status').innerHTML = '<span style="color: green;">✓ Token saved! Reload page to fetch match data.</span>';
     });
   }
 
@@ -642,6 +689,7 @@
           teamId: skillsData.get(team.team)?.teamId || null
         })).filter(t => t.teamId);
 
+        console.log('VEX Event Enhancer - Teams with IDs:', teamsWithIds);
         console.log('VEX Event Enhancer - Fetching match data for', teamsWithIds.length, 'teams...');
         matchAverages = await fetchAllMatchAverages(teamsWithIds);
         console.log('VEX Event Enhancer - Got match averages for', matchAverages.size, 'teams');
