@@ -37,7 +37,7 @@
     }
 
     const url = `${CONFIG.apiUrl}?${params.join('&')}`;
-    console.log('VEX Enhancer - API URL:', url);
+    console.log('VIQRC Enhanced - API URL:', url);
     return url;
   }
 
@@ -61,7 +61,7 @@
 
     const affiliations = getSelectedAffiliations();
 
-    console.log('VEX Enhancer - Client filters:', {
+    console.log('VIQRC Enhanced - Client filters:', {
       eventRegion, eventRegionLabel,
       countryId, countryName,
       regionId, regionName,
@@ -134,7 +134,7 @@
   async function fetchAllSkillsData() {
     try {
       const url = buildApiUrl();
-      console.log('VEX Enhancer - Fetching skills data from:', url);
+      console.log('VIQRC Enhanced - Fetching skills data from:', url);
 
       const response = await fetch(url);
       if (!response.ok) {
@@ -142,17 +142,17 @@
       }
 
       const data = await response.json();
-      console.log('VEX Enhancer - Received', data.length, 'teams from API');
+      console.log('VIQRC Enhanced - Received', data.length, 'teams from API');
 
       // Parse and store grade-level data
       gradeData = parseApiData(data);
-      console.log('VEX Enhancer - Parsed', gradeData.length, 'teams for grade level');
+      console.log('VIQRC Enhanced - Parsed', gradeData.length, 'teams for grade level');
 
       // Apply filters and build table
       refreshFilteredData();
 
     } catch (error) {
-      console.error('VEX Enhancer - Failed to fetch API data:', error);
+      console.error('VIQRC Enhanced - Failed to fetch API data:', error);
       document.getElementById('vex-stats-scope').textContent = '(API error)';
     }
   }
@@ -209,7 +209,7 @@
 
     filteredData = applyFilters(gradeData);
     rankData(filteredData);
-    console.log('VEX Enhancer - Filtered to', filteredData.length, 'of', gradeData.length, 'teams');
+    console.log('VIQRC Enhanced - Filtered to', filteredData.length, 'of', gradeData.length, 'teams');
 
     buildCustomTable();
     updateStats();
@@ -290,7 +290,7 @@
       }
     });
 
-    console.log('VEX Enhancer - Enhanced original table');
+    console.log('VIQRC Enhanced - Enhanced original table');
   }
 
   // Build our custom table
@@ -445,7 +445,7 @@
       });
     });
 
-    console.log('VEX Enhancer - Custom table built with', filteredData.length, 'rows');
+    console.log('VIQRC Enhanced - Custom table built with', filteredData.length, 'rows');
   }
 
   // Show team details modal
@@ -917,7 +917,7 @@
     const onServerFilterChange = () => {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        console.log('VEX Enhancer - Server filter changed, refetching');
+        console.log('VIQRC Enhanced - Server filter changed, refetching');
         fetchAllSkillsData();
       }, 500);
     };
@@ -926,7 +926,7 @@
     const onClientFilterChange = () => {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        console.log('VEX Enhancer - Client filter changed, refreshing');
+        console.log('VIQRC Enhanced - Client filter changed, refreshing');
         refreshFilteredData();
       }, 300);
     };
@@ -959,12 +959,12 @@
     });
 
     observer.observe(table, { childList: true, subtree: true });
-    console.log('VEX Enhancer - Observing original table for changes');
+    console.log('VIQRC Enhanced - Observing original table for changes');
   }
 
   // Initialize
   function init() {
-    console.log('VEX IQ Skills Enhancer loaded');
+    console.log('VIQRC Enhanced loaded');
 
     loadSettings();
 

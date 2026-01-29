@@ -124,12 +124,12 @@
         url += `&grade_level=${encodeURIComponent(gradeLevel)}`;
       }
 
-      console.log('VEX Event Enhancer - Fetching skills data');
+      console.log('VIQRC Enhanced - Fetching skills data');
       const response = await fetch(url);
       if (!response.ok) throw new Error(`API returned ${response.status}`);
 
       const data = await response.json();
-      console.log('VEX Event Enhancer - Received', data.length, 'teams from skills API');
+      console.log('VIQRC Enhanced - Received', data.length, 'teams from skills API');
 
       // Create a map for quick lookup
       skillsData = new Map();
@@ -152,7 +152,7 @@
 
       return true;
     } catch (error) {
-      console.error('VEX Event Enhancer - Failed to fetch skills data:', error);
+      console.error('VIQRC Enhanced - Failed to fetch skills data:', error);
       return false;
     }
   }
@@ -163,28 +163,28 @@
 
     try {
       const url = `https://www.robotevents.com/api/v2/teams/${teamId}/matches?season%5B%5D=196&per_page=250`;
-      console.log('VEX Event Enhancer - Fetching matches from:', url);
+      console.log('VIQRC Enhanced - Fetching matches from:', url);
       const settings = loadSettings();
       const headers = {};
       if (settings.apiToken) {
         headers['Authorization'] = `Bearer ${settings.apiToken}`;
       }
       const response = await fetch(url, { headers });
-      console.log('VEX Event Enhancer - Response status:', response.status);
+      console.log('VIQRC Enhanced - Response status:', response.status);
       if (!response.ok) {
-        console.log('VEX Event Enhancer - Response not ok, body:', await response.text().catch(() => 'N/A'));
+        console.log('VIQRC Enhanced - Response not ok, body:', await response.text().catch(() => 'N/A'));
         return null;
       }
 
       const data = await response.json();
-      console.log('VEX Event Enhancer - Match data for team', teamId, ':', data);
+      console.log('VIQRC Enhanced - Match data for team', teamId, ':', data);
       const matches = data.data || [];
-      console.log('VEX Event Enhancer - Total matches:', matches.length);
+      console.log('VIQRC Enhanced - Total matches:', matches.length);
 
       // Filter to matches from the last 2 months
       const twoMonthsAgo = new Date();
       twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
-      console.log('VEX Event Enhancer - Filtering matches since:', twoMonthsAgo.toISOString());
+      console.log('VIQRC Enhanced - Filtering matches since:', twoMonthsAgo.toISOString());
 
       const recentMatches = matches.filter(match => {
         if (!match.updated_at) {
@@ -197,7 +197,7 @@
         return isRecent && hasScores;
       });
 
-      console.log('VEX Event Enhancer - Recent scored matches:', recentMatches.length);
+      console.log('VIQRC Enhanced - Recent scored matches:', recentMatches.length);
       if (recentMatches.length === 0) return null;
 
       // Calculate average score for this team across recent matches
@@ -209,7 +209,7 @@
         for (const alliance of match.alliances || []) {
           const teamOnAlliance = alliance.teams?.some(t => t.team?.id === teamId);
           if (teamOnAlliance && alliance.score !== undefined) {
-            console.log('VEX Event Enhancer - Team', teamId, 'on', alliance.color, 'alliance, score:', alliance.score);
+            console.log('VIQRC Enhanced - Team', teamId, 'on', alliance.color, 'alliance, score:', alliance.score);
             totalScore += alliance.score;
             matchCount++;
             break;
@@ -217,7 +217,7 @@
         }
       });
 
-      console.log('VEX Event Enhancer - Match count:', matchCount, 'Total score:', totalScore, 'Avg:', matchCount > 0 ? totalScore / matchCount : 0);
+      console.log('VIQRC Enhanced - Match count:', matchCount, 'Total score:', totalScore, 'Avg:', matchCount > 0 ? totalScore / matchCount : 0);
       if (matchCount === 0) return null;
 
       return {
@@ -225,7 +225,7 @@
         matchCount: matchCount
       };
     } catch (error) {
-      console.error('VEX Event Enhancer - Failed to fetch match data for team', teamId, error);
+      console.error('VIQRC Enhanced - Failed to fetch match data for team', teamId, error);
       return null;
     }
   }
@@ -438,7 +438,7 @@
       });
     });
 
-    console.log('VEX Event Enhancer - Table built with', mergedData.length, 'teams');
+    console.log('VIQRC Enhanced - Table built with', mergedData.length, 'teams');
   }
 
   // Show team modal
@@ -666,14 +666,14 @@
 
   // Initialize
   async function init() {
-    console.log('VEX Event Enhancer loaded');
+    console.log('VIQRC Enhanced loaded');
 
     // Wait for the page to fully load (including dynamic content)
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     // Extract teams from the page
     eventTeams = extractTeams();
-    console.log('VEX Event Enhancer - Found', eventTeams.length, 'teams on page');
+    console.log('VIQRC Enhanced - Found', eventTeams.length, 'teams on page');
 
     if (eventTeams.length > 0) {
       // Fetch skills data
@@ -689,10 +689,10 @@
           teamId: skillsData.get(team.team)?.teamId || null
         })).filter(t => t.teamId);
 
-        console.log('VEX Event Enhancer - Teams with IDs:', teamsWithIds);
-        console.log('VEX Event Enhancer - Fetching match data for', teamsWithIds.length, 'teams...');
+        console.log('VIQRC Enhanced - Teams with IDs:', teamsWithIds);
+        console.log('VIQRC Enhanced - Fetching match data for', teamsWithIds.length, 'teams...');
         matchAverages = await fetchAllMatchAverages(teamsWithIds);
-        console.log('VEX Event Enhancer - Got match averages for', matchAverages.size, 'teams');
+        console.log('VIQRC Enhanced - Got match averages for', matchAverages.size, 'teams');
 
         // Rebuild table with match averages
         buildEnhancedTable();

@@ -26,7 +26,7 @@ jobs:
       - name: Create extension package
         run: |
           mkdir -p dist
-          zip -r dist/vex-skills-enhancer-${{ steps.version.outputs.version }}.zip \
+          zip -r dist/viqrc-enhanced-${{ steps.version.outputs.version }}.zip \
             manifest.json \
             content.js \
             event-page.js \
@@ -37,7 +37,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vex-skills-enhancer-${{ steps.version.outputs.version }}
+          name: viqrc-enhanced-${{ steps.version.outputs.version }}
           path: dist/*.zip
 
       - name: Create Release

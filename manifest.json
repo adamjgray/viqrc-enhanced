@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "VEX IQ Skills Standings Enhancer",
+  "name": "VIQRC Enhanced",
   "version": "1.0.0",
   "description": "Augments the RobotEvents VEX IQ Skills Standings page with statistics, highlighting, and export features",
   "permissions": ["storage"],

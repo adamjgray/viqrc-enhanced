@@ -1,6 +1,6 @@
-# VEX IQ Skills Standings Enhancer
+# VIQRC Enhanced
 
-A Chrome extension that augments the [RobotEvents VEX IQ Skills Standings page](https://www.robotevents.com/robot-competitions/vex-iq-competition/standings/skills) with useful features.
+A Chrome extension that enhances the [RobotEvents](https://www.robotevents.com) experience for VEX IQ Robotics Competition (VIQRC) with statistics, team tracking, and match data.
 
 ## Features
 
