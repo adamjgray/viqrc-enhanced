@@ -470,6 +470,168 @@
   opacity: 1;
 }
 
+/* Team Details Modal */
+.vex-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.vex-modal {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.vex-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #c41230 0%, #8b0000 100%);
+  color: white;
+}
+
+.vex-modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: white;
+}
+
+.vex-modal-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.vex-modal-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.vex-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.vex-modal-section {
+  margin-bottom: 20px;
+}
+
+.vex-modal-section:last-child {
+  margin-bottom: 0;
+}
+
+.vex-modal-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #eee;
+}
+
+.vex-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.vex-modal-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vex-modal-label {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.vex-modal-value {
+  font-size: 15px;
+  color: #333;
+  font-weight: 500;
+}
+
+.vex-modal-score {
+  font-size: 24px;
+  font-weight: 700;
+  color: #c41230;
+}
+
+.vex-modal-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vex-modal-tag {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #f0f0f0;
+  color: #666;
+}
+
+.vex-tag-competition {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.vex-tag-highlighted {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.vex-tag-eligible {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.vex-custom-table tbody tr:hover {
+  background: #f0f0f0 !important;
+}
+
 .vex-custom-table td {
   padding: 10px 16px;
   border-bottom: 1px solid #eee;

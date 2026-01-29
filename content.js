@@ -432,7 +432,154 @@
       });
     });
 
+    // Setup row click handlers for team details modal
+    container.querySelectorAll('tbody tr').forEach(row => {
+      row.style.cursor = 'pointer';
+      row.addEventListener('click', () => {
+        const teamNum = row.dataset.team;
+        const teamData = filteredData.find(t => t.team === teamNum);
+        if (teamData) {
+          showTeamModal(teamData);
+        }
+      });
+    });
+
     console.log('VEX Enhancer - Custom table built with', filteredData.length, 'rows');
+  }
+
+  // Show team details modal
+  function showTeamModal(team) {
+    // Remove existing modal if any
+    const existingModal = document.getElementById('vex-team-modal');
+    if (existingModal) existingModal.remove();
+
+    const competitionTeams = getCompetitionTeams();
+    const isCompetition = competitionTeams.has(team.team);
+    const isHighlighted = settings.highlightedTeams.map(t => t.toUpperCase()).includes(team.team);
+
+    const globalScores = gradeData.map(d => d.score);
+    const filteredScores = filteredData.map(d => d.score);
+    const globalPercentile = getPercentile(team.score, globalScores);
+    const filteredPercentile = getPercentile(team.score, filteredScores);
+
+    // Find global rank
+    const sortedGlobal = [...gradeData].sort((a, b) => b.score - a.score);
+    const globalRank = sortedGlobal.findIndex(t => t.team === team.team) + 1;
+
+    const modal = document.createElement('div');
+    modal.id = 'vex-team-modal';
+    modal.className = 'vex-modal-overlay';
+    modal.innerHTML = `
+      <div class="vex-modal">
+        <div class="vex-modal-header">
+          <h2>${team.team} - ${team.teamName}</h2>
+          <button class="vex-modal-close">&times;</button>
+        </div>
+        <div class="vex-modal-body">
+          <div class="vex-modal-section">
+            <h3>Team Information</h3>
+            <div class="vex-modal-grid">
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Team Number</span>
+                <span class="vex-modal-value">${team.team}</span>
+              </div>
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Team Name</span>
+                <span class="vex-modal-value">${team.teamName || 'N/A'}</span>
+              </div>
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Organization</span>
+                <span class="vex-modal-value">${team.organization || 'N/A'}</span>
+              </div>
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Location</span>
+                <span class="vex-modal-value">${[team.city, team.region, team.country].filter(Boolean).join(', ') || 'N/A'}</span>
+              </div>
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Grade Level</span>
+                <span class="vex-modal-value">${team.gradeLevel || 'N/A'}</span>
+              </div>
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Event Region</span>
+                <span class="vex-modal-value">${team.eventRegion || 'N/A'}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="vex-modal-section">
+            <h3>Skills Scores</h3>
+            <div class="vex-modal-grid">
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Combined Score</span>
+                <span class="vex-modal-value vex-modal-score">${team.score}</span>
+              </div>
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Autonomous</span>
+                <span class="vex-modal-value">${team.programming}</span>
+              </div>
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Driver</span>
+                <span class="vex-modal-value">${team.driver}</span>
+              </div>
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Max Autonomous</span>
+                <span class="vex-modal-value">${team.maxProgramming || team.programming}</span>
+              </div>
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Max Driver</span>
+                <span class="vex-modal-value">${team.maxDriver || team.driver}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="vex-modal-section">
+            <h3>Rankings</h3>
+            <div class="vex-modal-grid">
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Filtered Rank</span>
+                <span class="vex-modal-value">${team.rank} of ${filteredData.length}</span>
+              </div>
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Global Rank</span>
+                <span class="vex-modal-value">${globalRank} of ${gradeData.length}</span>
+              </div>
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Filtered Percentile</span>
+                <span class="vex-modal-value">${filteredPercentile}%</span>
+              </div>
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Global Percentile</span>
+                <span class="vex-modal-value">${globalPercentile}%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="vex-modal-section">
+            <h3>Status</h3>
+            <div class="vex-modal-tags">
+              ${isCompetition ? '<span class="vex-modal-tag vex-tag-competition">In Loaded Competition</span>' : ''}
+              ${isHighlighted ? '<span class="vex-modal-tag vex-tag-highlighted">Highlighted</span>' : ''}
+              ${team.eligible ? '<span class="vex-modal-tag vex-tag-eligible">Eligible</span>' : ''}
+              ${!isCompetition && !isHighlighted && !team.eligible ? '<span class="vex-modal-tag">No special status</span>' : ''}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Close handlers
+    modal.querySelector('.vex-modal-close').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.remove();
+    });
+    document.addEventListener('keydown', function escHandler(e) {
+      if (e.key === 'Escape') {
+        modal.remove();
+        document.removeEventListener('keydown', escHandler);
+      }
+    });
   }
 
   // Sort filtered data and rebuild table
