@@ -168,6 +168,7 @@
       if (teamNum) {
         data.push({
           team: teamNum,
+          teamId: item.team?.id || null,
           score: parseFloat(scores.score || 0),
           programming: parseFloat(scores.programming || 0),
           driver: parseFloat(scores.driver || 0),

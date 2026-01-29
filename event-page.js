@@ -10,6 +10,7 @@
 
   let eventTeams = [];      // Teams registered for this event
   let skillsData = null;    // Skills data for all teams
+  let matchAverages = null; // Recent match averages for teams
   let sortColumn = 'score';
   let sortDirection = 'desc';
 
@@ -136,6 +137,7 @@
         const teamNum = item.team?.team?.toUpperCase();
         if (teamNum) {
           skillsData.set(teamNum, {
+            teamId: item.team?.id || null,
             score: parseFloat(item.scores?.score || 0),
             programming: parseFloat(item.scores?.programming || 0),
             driver: parseFloat(item.scores?.driver || 0),
@@ -153,6 +155,84 @@
       console.error('VEX Event Enhancer - Failed to fetch skills data:', error);
       return false;
     }
+  }
+
+  // Fetch match data for a team and calculate recent match average
+  async function fetchRecentMatchAverage(teamId) {
+    if (!teamId) return null;
+
+    try {
+      const response = await fetch(`https://www.robotevents.com/api/v2/teams/${teamId}/matches?per_page=250`);
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      const matches = data.data || [];
+
+      // Filter to matches from the last 2 months
+      const twoMonthsAgo = new Date();
+      twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+
+      const recentMatches = matches.filter(match => {
+        if (!match.started) return false;
+        const matchDate = new Date(match.started);
+        return matchDate >= twoMonthsAgo && match.scored;
+      });
+
+      if (recentMatches.length === 0) return null;
+
+      // Calculate average score for this team across recent matches
+      let totalScore = 0;
+      let matchCount = 0;
+
+      recentMatches.forEach(match => {
+        // Find which alliance the team was on
+        for (const alliance of match.alliances || []) {
+          const teamOnAlliance = alliance.teams?.some(t => t.team?.id === teamId);
+          if (teamOnAlliance && alliance.score !== undefined) {
+            totalScore += alliance.score;
+            matchCount++;
+            break;
+          }
+        }
+      });
+
+      if (matchCount === 0) return null;
+
+      return {
+        average: Math.round(totalScore / matchCount),
+        matchCount: matchCount
+      };
+    } catch (error) {
+      console.error('VEX Event Enhancer - Failed to fetch match data for team', teamId, error);
+      return null;
+    }
+  }
+
+  // Fetch match averages for all teams (with rate limiting)
+  async function fetchAllMatchAverages(teams) {
+    const matchAverages = new Map();
+
+    // Process in batches to avoid rate limiting
+    const batchSize = 5;
+    for (let i = 0; i < teams.length; i += batchSize) {
+      const batch = teams.slice(i, i + batchSize);
+      const promises = batch.map(async team => {
+        if (team.teamId) {
+          const result = await fetchRecentMatchAverage(team.teamId);
+          if (result) {
+            matchAverages.set(team.team, result);
+          }
+        }
+      });
+      await Promise.all(promises);
+
+      // Small delay between batches
+      if (i + batchSize < teams.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    return matchAverages;
   }
 
   // Calculate percentile
@@ -187,19 +267,22 @@
       }
     }
 
-    // Merge event teams with skills data
+    // Merge event teams with skills data and match averages
     const mergedData = eventTeams.map(team => {
       const skills = skillsData?.get(team.team) || {};
+      const matchAvg = matchAverages?.get(team.team) || null;
       return {
         ...team,
+        teamId: skills.teamId || null,
         score: skills.score || 0,
         programming: skills.programming || 0,
         driver: skills.driver || 0,
-        globalRank: skills.rank || 0,
         gradeLevel: skills.gradeLevel || '',
         city: skills.city || team.location?.split(',')[0]?.trim() || '',
         region: skills.region || '',
-        country: skills.country || ''
+        country: skills.country || '',
+        recentMatchAvg: matchAvg?.average || null,
+        recentMatchCount: matchAvg?.matchCount || 0
       };
     });
 
@@ -243,16 +326,17 @@
             <th class="vex-sortable" data-sort="score">Score ${sortIndicator('score')}</th>
             <th class="vex-sortable" data-sort="programming">Auto ${sortIndicator('programming')}</th>
             <th class="vex-sortable" data-sort="driver">Driver ${sortIndicator('driver')}</th>
-            <th>Global Rank</th>
-            <th>Percentile</th>
+            <th class="vex-sortable" data-sort="recentMatchAvg">Match Avg ${sortIndicator('recentMatchAvg')}</th>
           </tr>
         </thead>
         <tbody>
     `;
 
     mergedData.forEach((team, idx) => {
-      const percentile = team.score > 0 ? getPercentile(team.score, allScores) : '-';
       const searchText = `${team.team} ${team.teamName} ${team.organization}`.toLowerCase();
+      const matchAvgDisplay = team.recentMatchAvg !== null
+        ? `<span title="${team.recentMatchCount} matches in last 2 months">${team.recentMatchAvg}</span>`
+        : '-';
 
       html += `
         <tr data-team="${team.team}" data-search="${searchText}" data-idx="${idx}">
@@ -263,8 +347,7 @@
           <td class="vex-score-cell">${team.score || '-'}</td>
           <td>${team.programming || '-'}</td>
           <td>${team.driver || '-'}</td>
-          <td>${team.globalRank || '-'}</td>
-          <td>${percentile}${percentile !== '-' ? '%' : ''}</td>
+          <td>${matchAvgDisplay}</td>
         </tr>
       `;
     });
@@ -341,8 +424,6 @@
     const existingModal = document.getElementById('vex-team-modal');
     if (existingModal) existingModal.remove();
 
-    const percentile = team.score > 0 ? getPercentile(team.score, allScores) : null;
-
     const modal = document.createElement('div');
     modal.id = 'vex-team-modal';
     modal.className = 'vex-modal-overlay';
@@ -395,16 +476,24 @@
                 <span class="vex-modal-label">Driver</span>
                 <span class="vex-modal-value">${team.driver}</span>
               </div>
-              <div class="vex-modal-item">
-                <span class="vex-modal-label">Global Rank</span>
-                <span class="vex-modal-value">${team.globalRank || 'N/A'}</span>
-              </div>
-              <div class="vex-modal-item">
-                <span class="vex-modal-label">Global Percentile</span>
-                <span class="vex-modal-value">${percentile !== null ? percentile + '%' : 'N/A'}</span>
-              </div>
             </div>
             ` : '<p style="color: #888;">No skills scores recorded yet.</p>'}
+          </div>
+
+          <div class="vex-modal-section">
+            <h3>Recent Match Performance</h3>
+            ${team.recentMatchAvg !== null ? `
+            <div class="vex-modal-grid">
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Average Score</span>
+                <span class="vex-modal-value vex-modal-score">${team.recentMatchAvg}</span>
+              </div>
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Matches (Last 2 Months)</span>
+                <span class="vex-modal-value">${team.recentMatchCount}</span>
+              </div>
+            </div>
+            ` : '<p style="color: #888;">No recent match data available.</p>'}
           </div>
         </div>
       </div>
@@ -540,9 +629,26 @@
     console.log('VEX Event Enhancer - Found', eventTeams.length, 'teams on page');
 
     if (eventTeams.length > 0) {
-      // Fetch skills data and build enhanced table
+      // Fetch skills data
       await fetchSkillsData();
+
+      // Build initial table (without match averages)
       buildEnhancedTable();
+
+      // Fetch match averages in the background and rebuild table when done
+      if (skillsData) {
+        const teamsWithIds = eventTeams.map(team => ({
+          team: team.team,
+          teamId: skillsData.get(team.team)?.teamId || null
+        })).filter(t => t.teamId);
+
+        console.log('VEX Event Enhancer - Fetching match data for', teamsWithIds.length, 'teams...');
+        matchAverages = await fetchAllMatchAverages(teamsWithIds);
+        console.log('VEX Event Enhancer - Got match averages for', matchAverages.size, 'teams');
+
+        // Rebuild table with match averages
+        buildEnhancedTable();
+      }
     }
 
     // Create capture button
