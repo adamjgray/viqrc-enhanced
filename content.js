@@ -13,8 +13,6 @@
   let settings = {
     highlightedTeams: [],
     competitionTeams: {},
-    showPercentiles: true,
-    showCharts: true,
     useCustomTable: true
   };
 
@@ -330,7 +328,7 @@
             <th>Score</th>
             <th>Autonomous</th>
             <th>Driver</th>
-            ${settings.showPercentiles ? '<th>Percentile</th>' : ''}
+            <th>Percentile</th>
           </tr>
         </thead>
         <tbody>
@@ -362,11 +360,11 @@
           <td>${item.organization}</td>
           <td class="vex-score-cell">
             ${item.score}
-            ${settings.showCharts ? `<div class="vex-score-bar ${barClass}" style="width: ${barWidth}%"></div>` : ''}
+            <div class="vex-score-bar ${barClass}" style="width: ${barWidth}%"></div>
           </td>
           <td>${item.programming}</td>
           <td>${item.driver}</td>
-          ${settings.showPercentiles ? `<td class="vex-percentile-cell">${percentile}%</td>` : ''}
+          <td class="vex-percentile-cell">${percentile}%</td>
         </tr>
       `;
     });
@@ -488,14 +486,6 @@
           <label>
             <input type="checkbox" id="vex-use-custom-table" ${settings.useCustomTable ? 'checked' : ''}>
             Use enhanced table (uncheck to use original)
-          </label>
-          <label>
-            <input type="checkbox" id="vex-show-percentiles" ${settings.showPercentiles ? 'checked' : ''}>
-            Show percentiles
-          </label>
-          <label>
-            <input type="checkbox" id="vex-show-bars" ${settings.showCharts ? 'checked' : ''}>
-            Show score bars
           </label>
         </div>
       </div>
@@ -663,28 +653,6 @@
       settings.useCustomTable = e.target.checked;
       saveSettings();
       toggleTableView();
-    });
-
-    // Percentiles toggle
-    document.getElementById('vex-show-percentiles')?.addEventListener('change', (e) => {
-      settings.showPercentiles = e.target.checked;
-      saveSettings();
-      if (settings.useCustomTable) {
-        refreshFilteredData();
-      } else {
-        enhanceOriginalTable();
-      }
-    });
-
-    // Score bars toggle
-    document.getElementById('vex-show-bars')?.addEventListener('change', (e) => {
-      settings.showCharts = e.target.checked;
-      saveSettings();
-      if (settings.useCustomTable) {
-        refreshFilteredData();
-      } else {
-        enhanceOriginalTable();
-      }
     });
   }
 
