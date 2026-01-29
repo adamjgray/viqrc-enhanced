@@ -1,0 +1,526 @@
+/* VEX IQ Skills Standings Enhancer Styles */
+
+/* Control Panel */
+#vex-enhancer-panel {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  width: 280px;
+  background: #ffffff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10000;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+}
+
+.vex-enhancer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #c41230 0%, #8b0000 100%);
+  color: white;
+  border-radius: 8px 8px 0 0;
+}
+
+.vex-enhancer-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+}
+
+#vex-toggle-panel {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  transition: background 0.2s;
+}
+
+#vex-toggle-panel:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.vex-enhancer-content {
+  padding: 12px 16px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.vex-section {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.vex-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.vex-section h4 {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Input styles */
+.vex-section input[type="text"] {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  box-sizing: border-box;
+  margin-bottom: 8px;
+}
+
+.vex-section input[type="text"]:focus {
+  outline: none;
+  border-color: #c41230;
+  box-shadow: 0 0 0 2px rgba(196, 18, 48, 0.1);
+}
+
+/* Button styles */
+.vex-section button {
+  padding: 8px 16px;
+  background: #c41230;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.vex-section button:hover {
+  background: #a00f28;
+}
+
+#vex-add-teams {
+  width: 100%;
+}
+
+#vex-open-event {
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+#vex-refresh-data {
+  width: 100%;
+  background: #666 !important;
+}
+
+#vex-refresh-data:hover {
+  background: #555 !important;
+}
+
+.vex-stats-note {
+  font-size: 11px;
+  font-weight: normal;
+  color: #888;
+  text-transform: none;
+}
+
+.vex-help-text {
+  font-size: 12px;
+  color: #666;
+  margin: 0 0 10px 0;
+  line-height: 1.4;
+}
+
+.vex-info {
+  color: #1976d2;
+  font-size: 12px;
+}
+
+/* Checkbox labels */
+.vex-section label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #555;
+}
+
+.vex-section label:last-child {
+  margin-bottom: 0;
+}
+
+.vex-section input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #c41230;
+}
+
+/* Team tags */
+#vex-highlighted-list {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#vex-highlighted-list em {
+  color: #999;
+  font-size: 12px;
+}
+
+.vex-team-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #856404;
+}
+
+.vex-remove-team {
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  width: auto !important;
+  color: #856404 !important;
+  font-size: 16px !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+}
+
+.vex-remove-team:hover {
+  color: #c41230 !important;
+  background: none !important;
+}
+
+/* Statistics */
+#vex-stats-container {
+  background: #f8f9fa;
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.vex-stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.vex-stat-row:last-child {
+  border-bottom: none;
+}
+
+.vex-stat-label {
+  color: #666;
+  font-size: 12px;
+}
+
+.vex-stat-value {
+  font-weight: 600;
+  color: #333;
+}
+
+/* Competition items */
+.vex-competition-item {
+  background: #e8f5e9;
+  border: 1px solid #4caf50;
+  border-radius: 4px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.vex-competition-item:last-child {
+  margin-bottom: 0;
+}
+
+.vex-competition-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.vex-competition-header strong {
+  font-size: 12px;
+  color: #2e7d32;
+  flex: 1;
+  word-break: break-word;
+}
+
+.vex-competition-info {
+  font-size: 11px;
+  color: #555;
+  margin-top: 4px;
+}
+
+.vex-competition-teams-count {
+  font-weight: 600;
+  color: #2e7d32;
+}
+
+.vex-competition-capacity {
+  color: #666;
+}
+
+.vex-competition-id {
+  font-size: 10px;
+  color: #888;
+  font-family: monospace;
+  margin-top: 4px;
+}
+
+.vex-remove-competition {
+  background: none !important;
+  border: none !important;
+  padding: 0 4px !important;
+  margin: 0 !important;
+  width: auto !important;
+  color: #666 !important;
+  font-size: 18px !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  flex-shrink: 0;
+}
+
+.vex-remove-competition:hover {
+  color: #c41230 !important;
+  background: none !important;
+}
+
+/* Status messages */
+.vex-loading {
+  color: #1976d2;
+  font-size: 12px;
+}
+
+.vex-success {
+  color: #2e7d32;
+  font-size: 12px;
+}
+
+.vex-error {
+  color: #c41230;
+  font-size: 12px;
+}
+
+.vex-warning {
+  color: #f57c00;
+  font-size: 12px;
+}
+
+#vex-competition-status {
+  margin-top: 8px;
+  min-height: 18px;
+}
+
+#vex-competition-list {
+  margin-top: 10px;
+}
+
+#vex-competition-list em {
+  color: #999;
+  font-size: 12px;
+}
+
+/* Table enhancements - row highlighting */
+.vex-highlighted-row,
+.vex-custom-table .vex-highlighted-row {
+  background: #fff3cd !important;
+}
+
+.vex-highlighted-row td,
+.vex-custom-table .vex-highlighted-row td {
+  background: #fff3cd !important;
+}
+
+/* Competition team highlighting (green) */
+.vex-competition-row,
+.vex-custom-table .vex-competition-row {
+  background: #e8f5e9 !important;
+}
+
+.vex-competition-row td,
+.vex-custom-table .vex-competition-row td {
+  background: #e8f5e9 !important;
+}
+
+/* When both manual and competition highlight apply */
+.vex-highlighted-row.vex-competition-row,
+.vex-both-highlight {
+  background: linear-gradient(90deg, #fff3cd 50%, #e8f5e9 50%) !important;
+}
+
+.vex-highlighted-row.vex-competition-row td,
+.vex-both-highlight td {
+  background: linear-gradient(90deg, #fff3cd 50%, #e8f5e9 50%) !important;
+}
+
+.vex-percentile-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  background: #e3f2fd;
+  color: #1565c0;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Custom table container */
+#vex-custom-table-container {
+  margin: 20px 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.vex-table-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 10px;
+  background: #f5f5f5;
+  border-radius: 6px;
+}
+
+#vex-table-search {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  width: 250px;
+}
+
+#vex-table-search:focus {
+  outline: none;
+  border-color: #c41230;
+}
+
+.vex-table-count {
+  color: #666;
+  font-size: 14px;
+}
+
+.vex-custom-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.vex-custom-table thead {
+  background: linear-gradient(135deg, #c41230 0%, #8b0000 100%);
+  color: white;
+}
+
+.vex-custom-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+}
+
+.vex-custom-table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.vex-custom-table tbody tr:hover {
+  background: #f9f9f9;
+}
+
+.vex-custom-table .vex-score-cell {
+  position: relative;
+  min-width: 120px;
+}
+
+/* Score bars */
+.vex-score-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.vex-bar-top {
+  background: linear-gradient(90deg, #4caf50, #2e7d32);
+}
+
+.vex-bar-high {
+  background: linear-gradient(90deg, #8bc34a, #689f38);
+}
+
+.vex-bar-mid {
+  background: linear-gradient(90deg, #ffc107, #ffa000);
+}
+
+.vex-bar-low {
+  background: linear-gradient(90deg, #ff9800, #f57c00);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  #vex-enhancer-panel {
+    width: calc(100% - 40px);
+    right: 20px;
+    left: 20px;
+    top: auto;
+    bottom: 20px;
+    max-height: 50vh;
+  }
+
+  .vex-enhancer-content {
+    max-height: 40vh;
+  }
+}
+
+/* Animation for panel */
+#vex-enhancer-panel {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Scrollbar styling */
+.vex-enhancer-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.vex-enhancer-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.vex-enhancer-content::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+
+.vex-enhancer-content::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}

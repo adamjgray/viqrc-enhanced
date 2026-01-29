@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Generate Extension Icons</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    canvas { border: 1px solid #ccc; margin: 10px; }
+    button { padding: 10px 20px; margin: 10px; cursor: pointer; }
+    .downloads { margin-top: 20px; }
+    a { display: block; margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <h1>VEX Skills Enhancer Icon Generator</h1>
+  <p>Click the button below to generate and download the extension icons.</p>
+
+  <div id="canvases"></div>
+  <button onclick="generateIcons()">Generate Icons</button>
+  <div id="downloads" class="downloads"></div>
+
+  <script>
+    const sizes = [16, 48, 128];
+
+    function drawIcon(ctx, size) {
+      // Background - VEX red gradient
+      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, '#c41230');
+      gradient.addColorStop(1, '#8b0000');
+
+      // Rounded rectangle background
+      const radius = size * 0.15;
+      ctx.beginPath();
+      ctx.roundRect(0, 0, size, size, radius);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      // White "VEX" text or symbol
+      ctx.fillStyle = 'white';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      if (size >= 48) {
+        ctx.font = `bold ${size * 0.3}px Arial`;
+        ctx.fillText('VEX', size / 2, size * 0.35);
+
+        ctx.font = `${size * 0.15}px Arial`;
+        ctx.fillText('SKILLS', size / 2, size * 0.6);
+
+        // Plus sign for "enhancer"
+        ctx.font = `bold ${size * 0.25}px Arial`;
+        ctx.fillText('+', size / 2, size * 0.82);
+      } else {
+        // Simple "V+" for small icon
+        ctx.font = `bold ${size * 0.5}px Arial`;
+        ctx.fillText('V+', size / 2, size / 2);
+      }
+    }
+
+    function generateIcons() {
+      const container = document.getElementById('canvases');
+      const downloads = document.getElementById('downloads');
+      container.innerHTML = '';
+      downloads.innerHTML = '<h3>Right-click and "Save image as..." or click links:</h3>';
+
+      sizes.forEach(size => {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+
+        drawIcon(ctx, size);
+
+        container.appendChild(canvas);
+
+        // Create download link
+        const link = document.createElement('a');
+        link.download = `icon${size}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.textContent = `Download icon${size}.png (${size}x${size})`;
+        downloads.appendChild(link);
+      });
+    }
+
+    // Auto-generate on load
+    generateIcons();
+  </script>
+</body>
+</html>

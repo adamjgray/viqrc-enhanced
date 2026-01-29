@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "VEX IQ Skills Standings Enhancer",
+  "version": "1.0.0",
+  "description": "Augments the RobotEvents VEX IQ Skills Standings page with statistics, highlighting, and export features",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://www.robotevents.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://www.robotevents.com/robot-competitions/vex-iq-competition/standings/skills*"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.robotevents.com/robot-competitions/vex-iq-competition/RE-*.html*"],
+      "js": ["event-page.js"],
+      "css": ["event-styles.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

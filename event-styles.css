@@ -1,0 +1,80 @@
+/* VEX Skills Enhancer - Event Page Styles */
+
+#vex-capture-button {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 10000;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+#vex-capture-teams {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #c41230 0%, #8b0000 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(196, 18, 48, 0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+#vex-capture-teams:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(196, 18, 48, 0.5);
+}
+
+#vex-capture-teams:active {
+  transform: translateY(0);
+}
+
+.vex-capture-icon {
+  font-size: 18px;
+}
+
+#vex-capture-status {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: white;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  font-size: 13px;
+  max-width: 300px;
+  display: none;
+}
+
+#vex-capture-status:not(:empty) {
+  display: block;
+}
+
+#vex-capture-status a {
+  color: #c41230;
+  text-decoration: underline;
+}
+
+#vex-capture-status .vex-success {
+  color: #2e7d32;
+}
+
+#vex-capture-status .vex-error {
+  color: #c41230;
+}
+
+#vex-capture-status .vex-warning {
+  color: #f57c00;
+}
+
+#vex-capture-status .vex-info {
+  color: #1976d2;
+}
+
+#vex-capture-status small {
+  display: block;
+  margin-top: 4px;
+  color: #666;
+}
