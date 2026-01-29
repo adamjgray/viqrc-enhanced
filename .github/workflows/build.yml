@@ -1,0 +1,48 @@
+name: Build Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "version=$(jq -r .version manifest.json)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create extension package
+        run: |
+          mkdir -p dist
+          zip -r dist/vex-skills-enhancer-${{ steps.version.outputs.version }}.zip \
+            manifest.json \
+            content.js \
+            event-page.js \
+            styles.css \
+            event-styles.css \
+            icons/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vex-skills-enhancer-${{ steps.version.outputs.version }}
+          path: dist/*.zip
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*.zip
+          generate_release_notes: true
