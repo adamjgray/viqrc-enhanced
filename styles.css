@@ -388,16 +388,6 @@
   background: #e8f5e9 !important;
 }
 
-/* When both manual and competition highlight apply */
-.vex-highlighted-row.vex-competition-row,
-.vex-both-highlight {
-  background: linear-gradient(90deg, #fff3cd 50%, #e8f5e9 50%) !important;
-}
-
-.vex-highlighted-row.vex-competition-row td,
-.vex-both-highlight td {
-  background: linear-gradient(90deg, #fff3cd 50%, #e8f5e9 50%) !important;
-}
 
 .vex-percentile-badge {
   display: inline-block;

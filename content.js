@@ -13,7 +13,8 @@
   let settings = {
     highlightedTeams: [],
     competitionTeams: {},
-    useCustomTable: true
+    useCustomTable: true,
+    onlyShowCompetitionTeams: false
   };
 
   let gradeData = null;    // All data for selected grade level (global)
@@ -89,11 +90,17 @@
     return affiliations;
   }
 
-  // Apply client-side filters (event region, country, region, affiliations)
+  // Apply client-side filters (event region, country, region, affiliations, competition teams)
   function applyFilters(data) {
     const filters = getClientFilters();
+    const competitionTeams = getCompetitionTeams();
 
     return data.filter(item => {
+      // Competition teams filter
+      if (settings.onlyShowCompetitionTeams && competitionTeams.size > 0) {
+        if (!competitionTeams.has(item.team)) return false;
+      }
+
       // Event region filter (compare names)
       if (filters.eventRegion && item.eventRegion !== filters.eventRegion) {
         return false;
@@ -225,16 +232,19 @@
   // Toggle between custom and original table views
   function toggleTableView() {
     const originalStandings = document.querySelector('#standings');
+    const standingsNav = document.querySelector('#standings-nav');
     const customContainer = document.getElementById('vex-custom-table-container');
 
     if (settings.useCustomTable) {
       // Show custom table, hide original
       if (originalStandings) originalStandings.style.display = 'none';
+      if (standingsNav) standingsNav.style.display = 'none';
       if (customContainer) customContainer.style.display = 'block';
       refreshFilteredData();
     } else {
       // Show original table, hide custom
       if (originalStandings) originalStandings.style.display = '';
+      if (standingsNav) standingsNav.style.display = '';
       if (customContainer) customContainer.style.display = 'none';
       enhanceOriginalTable();
     }
@@ -251,7 +261,7 @@
     const rows = table.querySelectorAll('tbody tr');
     rows.forEach(row => {
       // Remove old highlights
-      row.classList.remove('vex-competition-row', 'vex-highlighted-row', 'vex-both-highlight');
+      row.classList.remove('vex-competition-row', 'vex-highlighted-row');
 
       // Find team number in this row
       const cells = row.querySelectorAll('td');
@@ -268,12 +278,11 @@
         const isCompetition = competitionTeams.has(teamNum);
         const isManual = manualTeams.has(teamNum);
 
-        if (isCompetition && isManual) {
-          row.classList.add('vex-both-highlight');
+        // Manual highlight takes priority over competition highlight
+        if (isManual) {
+          row.classList.add('vex-highlighted-row');
         } else if (isCompetition) {
           row.classList.add('vex-competition-row');
-        } else if (isManual) {
-          row.classList.add('vex-highlighted-row');
         }
       }
     });
@@ -286,17 +295,22 @@
     if (!filteredData) return;
 
     const originalStandings = document.querySelector('#standings');
+    const standingsNav = document.querySelector('#standings-nav');
 
     // If not using custom table, just enhance original and return
     if (!settings.useCustomTable) {
       if (originalStandings) originalStandings.style.display = '';
+      if (standingsNav) standingsNav.style.display = '';
       enhanceOriginalTable();
       return;
     }
 
-    // Hide original standings
+    // Hide original standings and nav
     if (originalStandings) {
       originalStandings.style.display = 'none';
+    }
+    if (standingsNav) {
+      standingsNav.style.display = 'none';
     }
 
     // Create or get our container
@@ -340,9 +354,9 @@
       const isCompetition = competitionTeams.has(item.team);
       const isManual = manualTeams.has(item.team);
       let rowClass = '';
-      if (isCompetition && isManual) rowClass = 'vex-both-highlight';
+      // Manual highlight takes priority over competition highlight
+      if (isManual) rowClass = 'vex-highlighted-row';
       else if (isCompetition) rowClass = 'vex-competition-row';
-      else if (isManual) rowClass = 'vex-highlighted-row';
 
       const percentile = getPercentile(item.score, filteredScores);
       const globalPercentile = getPercentile(item.score, globalScores);
@@ -490,6 +504,10 @@
           <input type="text" id="vex-competition-input" placeholder="Competition ID (e.g., RE-VIQRC-25-2623)">
           <button id="vex-open-event">Open Event Page</button>
           <button id="vex-refresh-data">Refresh Data</button>
+          <label id="vex-filter-competition-label" style="margin-top: 8px; ${Object.keys(settings.competitionTeams).length === 0 ? 'display: none;' : ''}">
+            <input type="checkbox" id="vex-filter-competition" ${settings.onlyShowCompetitionTeams ? 'checked' : ''}>
+            Only show competition teams
+          </label>
           <div id="vex-competition-status"></div>
           <div id="vex-competition-list"></div>
         </div>
@@ -526,8 +544,21 @@
 
     const competitions = Object.entries(settings.competitionTeams);
 
+    // Show/hide the filter checkbox based on whether we have competitions
+    const filterLabel = document.getElementById('vex-filter-competition-label');
+    if (filterLabel) {
+      filterLabel.style.display = competitions.length > 0 ? '' : 'none';
+    }
+
     if (competitions.length === 0) {
       list.innerHTML = '<em>No competitions loaded</em>';
+      // Reset the filter if no competitions
+      if (settings.onlyShowCompetitionTeams) {
+        settings.onlyShowCompetitionTeams = false;
+        const checkbox = document.getElementById('vex-filter-competition');
+        if (checkbox) checkbox.checked = false;
+        saveSettings();
+      }
       return;
     }
 
@@ -678,6 +709,13 @@
       settings.useCustomTable = e.target.checked;
       saveSettings();
       toggleTableView();
+    });
+
+    // Competition teams filter toggle
+    document.getElementById('vex-filter-competition')?.addEventListener('change', (e) => {
+      settings.onlyShowCompetitionTeams = e.target.checked;
+      saveSettings();
+      refreshFilteredData();
     });
   }
 
