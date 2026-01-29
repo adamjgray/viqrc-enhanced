@@ -19,6 +19,8 @@
 
   let gradeData = null;    // All data for selected grade level (global)
   let filteredData = null; // Data after applying client-side filters
+  let sortColumn = 'score'; // Current sort column
+  let sortDirection = 'desc'; // 'asc' or 'desc'
 
   // Build API URL (only post_season and grade_level are server-side params)
   function buildApiUrl() {
@@ -327,6 +329,12 @@
     const competitionTeams = getCompetitionTeams();
     const manualTeams = new Set(settings.highlightedTeams.map(t => t.toUpperCase()));
 
+    // Helper for sort indicator
+    const sortIndicator = (col) => {
+      if (sortColumn !== col) return '<span class="vex-sort-icon">⇅</span>';
+      return sortDirection === 'desc' ? '<span class="vex-sort-icon active">↓</span>' : '<span class="vex-sort-icon active">↑</span>';
+    };
+
     // Build table HTML
     let html = `
       <div class="vex-table-controls">
@@ -340,9 +348,9 @@
             <th>Team</th>
             <th>Team Name</th>
             <th>Organization</th>
-            <th>Score</th>
-            <th>Autonomous</th>
-            <th>Driver</th>
+            <th class="vex-sortable" data-sort="score">Score ${sortIndicator('score')}</th>
+            <th class="vex-sortable" data-sort="programming">Autonomous ${sortIndicator('programming')}</th>
+            <th class="vex-sortable" data-sort="driver">Driver ${sortIndicator('driver')}</th>
             <th>Percentile</th>
             <th>Global %</th>
           </tr>
@@ -408,7 +416,41 @@
       }
     });
 
+    // Setup sortable column headers
+    container.querySelectorAll('.vex-sortable').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.sort;
+        if (sortColumn === col) {
+          // Toggle direction
+          sortDirection = sortDirection === 'desc' ? 'asc' : 'desc';
+        } else {
+          // New column, default to descending
+          sortColumn = col;
+          sortDirection = 'desc';
+        }
+        sortAndRebuildTable();
+      });
+    });
+
     console.log('VEX Enhancer - Custom table built with', filteredData.length, 'rows');
+  }
+
+  // Sort filtered data and rebuild table
+  function sortAndRebuildTable() {
+    if (!filteredData) return;
+
+    filteredData.sort((a, b) => {
+      const aVal = a[sortColumn] || 0;
+      const bVal = b[sortColumn] || 0;
+      return sortDirection === 'desc' ? bVal - aVal : aVal - bVal;
+    });
+
+    // Re-assign ranks based on new sort
+    filteredData.forEach((item, idx) => {
+      item.rank = idx + 1;
+    });
+
+    buildCustomTable();
   }
 
   // Calculate stats for a dataset

@@ -451,6 +451,25 @@
   font-weight: 600;
 }
 
+.vex-custom-table th.vex-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.vex-custom-table th.vex-sortable:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.vex-sort-icon {
+  margin-left: 4px;
+  opacity: 0.4;
+  font-size: 12px;
+}
+
+.vex-sort-icon.active {
+  opacity: 1;
+}
+
 .vex-custom-table td {
   padding: 10px 16px;
   border-bottom: 1px solid #eee;
