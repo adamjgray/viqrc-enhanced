@@ -48,9 +48,8 @@
 
     // Use the specific selector for the teams table
     const teamsTableSelectors = [
-      '#api-app > div:nth-child(4) > div > div > div.col-md-10 > div > div > div > section:nth-child(10) > div > table',
+      'section > div > table',
       '#api-app table',
-      'section:has(h4:contains("Teams")) table',
       'table'
     ];
 
@@ -309,8 +308,8 @@
     if (eventTeams.length === 0) return;
 
     // Find the teams section
-    const teamsSection = document.querySelector('#api-app table')?.closest('section') ||
-                        document.querySelector('#api-app table')?.closest('div');
+    const teamsSection = document.querySelector('section > div > table')?.closest('section') ||
+                        document.querySelector('#api-app table')?.closest('section');
     if (!teamsSection) return;
 
     // Hide original table
