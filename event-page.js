@@ -207,8 +207,9 @@
       debug('Recent scored matches:', recentMatches.length);
       if (recentMatches.length === 0) return null;
 
-      // Calculate average score for this team across recent matches
+      // Calculate average and max score for this team across recent matches
       let totalScore = 0;
+      let maxScore = 0;
       let matchCount = 0;
 
       recentMatches.forEach(match => {
@@ -218,17 +219,19 @@
           if (teamOnAlliance && alliance.score !== undefined) {
             debug('Team', teamId, 'on', alliance.color, 'alliance, score:', alliance.score);
             totalScore += alliance.score;
+            maxScore = Math.max(maxScore, alliance.score);
             matchCount++;
             break;
           }
         }
       });
 
-      debug('Match count:', matchCount, 'Total score:', totalScore, 'Avg:', matchCount > 0 ? totalScore / matchCount : 0);
+      debug('Match count:', matchCount, 'Total score:', totalScore, 'Max:', maxScore, 'Avg:', matchCount > 0 ? totalScore / matchCount : 0);
       if (matchCount === 0) return null;
 
       return {
         average: Math.round(totalScore / matchCount),
+        max: maxScore,
         matchCount: matchCount
       };
     } catch (err) {
@@ -311,6 +314,7 @@
         region: skills.region || '',
         country: skills.country || '',
         recentMatchAvg: matchAvg?.average || null,
+        recentMatchMax: matchAvg?.max || null,
         recentMatchCount: matchAvg?.matchCount || 0
       };
     });
@@ -356,6 +360,7 @@
             <th class="vex-sortable" data-sort="programming">Auto ${sortIndicator('programming')}</th>
             <th class="vex-sortable" data-sort="driver">Driver ${sortIndicator('driver')}</th>
             <th class="vex-sortable" data-sort="recentMatchAvg">Match Avg ${sortIndicator('recentMatchAvg')}</th>
+            <th class="vex-sortable" data-sort="recentMatchMax">Match Max ${sortIndicator('recentMatchMax')}</th>
           </tr>
         </thead>
         <tbody>
@@ -366,6 +371,7 @@
       const matchAvgDisplay = team.recentMatchAvg !== null
         ? `<span title="${team.recentMatchCount} matches in last 2 months">${team.recentMatchAvg}</span>`
         : '-';
+      const matchMaxDisplay = team.recentMatchMax !== null ? team.recentMatchMax : '-';
 
       html += `
         <tr data-team="${team.team}" data-search="${searchText}" data-idx="${idx}">
@@ -377,6 +383,7 @@
           <td>${team.programming || '-'}</td>
           <td>${team.driver || '-'}</td>
           <td>${matchAvgDisplay}</td>
+          <td>${matchMaxDisplay}</td>
         </tr>
       `;
     });
@@ -516,6 +523,10 @@
               <div class="vex-modal-item">
                 <span class="vex-modal-label">Average Score</span>
                 <span class="vex-modal-value vex-modal-score">${team.recentMatchAvg}</span>
+              </div>
+              <div class="vex-modal-item">
+                <span class="vex-modal-label">Max Score</span>
+                <span class="vex-modal-value vex-modal-score">${team.recentMatchMax}</span>
               </div>
               <div class="vex-modal-item">
                 <span class="vex-modal-label">Matches (Last 2 Months)</span>
