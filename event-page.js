@@ -211,20 +211,49 @@
       let totalScore = 0;
       let maxScore = 0;
       let matchCount = 0;
+      const matchList = [];
 
       recentMatches.forEach(match => {
         // Find which alliance the team was on (red or blue)
-        for (const alliance of match.alliances || []) {
+        const alliances = match.alliances || [];
+        for (const alliance of alliances) {
           const teamOnAlliance = alliance.teams?.some(t => t.team?.id === teamId);
           if (teamOnAlliance && alliance.score !== undefined) {
             debug('Team', teamId, 'on', alliance.color, 'alliance, score:', alliance.score);
             totalScore += alliance.score;
             maxScore = Math.max(maxScore, alliance.score);
             matchCount++;
+
+            // Find opposing alliance
+            const opponent = alliances.find(a => a.color !== alliance.color);
+
+            // Store match details for display
+            const teamNumbers = alliance.teams?.map(t => t.team?.name || t.team?.code || '?') || [];
+            const opponentNumbers = opponent?.teams?.map(t => t.team?.name || t.team?.code || '?') || [];
+
+            matchList.push({
+              name: match.name || `Match ${match.matchnum}`,
+              eventName: match.event?.name || '',
+              eventCode: match.event?.code || '',
+              teamAlliance: {
+                color: alliance.color,
+                teams: teamNumbers,
+                score: alliance.score
+              },
+              opponentAlliance: opponent ? {
+                color: opponent.color,
+                teams: opponentNumbers,
+                score: opponent.score
+              } : null,
+              date: match.updated_at || match.started || match.scheduled
+            });
             break;
           }
         }
       });
+
+      // Sort matches by date descending (most recent first)
+      matchList.sort((a, b) => new Date(b.date) - new Date(a.date));
 
       debug('Match count:', matchCount, 'Total score:', totalScore, 'Max:', maxScore, 'Avg:', matchCount > 0 ? totalScore / matchCount : 0);
       if (matchCount === 0) return null;
@@ -232,7 +261,8 @@
       return {
         average: Math.round(totalScore / matchCount),
         max: maxScore,
-        matchCount: matchCount
+        matchCount: matchCount,
+        matches: matchList
       };
     } catch (err) {
       error('Failed to fetch match data for team', teamId, err);
@@ -315,7 +345,8 @@
         country: skills.country || '',
         recentMatchAvg: matchAvg?.average || null,
         recentMatchMax: matchAvg?.max || null,
-        recentMatchCount: matchAvg?.matchCount || 0
+        recentMatchCount: matchAvg?.matchCount || 0,
+        recentMatches: matchAvg?.matches || []
       };
     });
 
@@ -535,6 +566,32 @@
             </div>
             ` : '<p style="color: #888;">No recent match data available.</p>'}
           </div>
+
+          ${team.recentMatches.length > 0 ? `
+          <div class="vex-modal-section">
+            <h3>Match History</h3>
+            <div class="vex-match-list">
+              ${team.recentMatches.map(match => `
+                <div class="vex-match-item">
+                  <div class="vex-match-alliances">
+                    <span class="vex-alliance-pill vex-alliance-${match.teamAlliance.color}">
+                      ${match.teamAlliance.teams.join(' & ')}
+                      <span class="vex-alliance-score">${match.teamAlliance.score}</span>
+                    </span>
+                    ${match.opponentAlliance ? `
+                    <span class="vex-vs">vs</span>
+                    <span class="vex-alliance-pill vex-alliance-${match.opponentAlliance.color}">
+                      ${match.opponentAlliance.teams.join(' & ')}
+                      <span class="vex-alliance-score">${match.opponentAlliance.score}</span>
+                    </span>
+                    ` : ''}
+                  </div>
+                  <a href="https://www.robotevents.com/robot-competitions/vex-iq-competition/${match.eventCode}.html" target="_blank" class="vex-match-name">${match.name}</a>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          ` : ''}
         </div>
       </div>
     `;
