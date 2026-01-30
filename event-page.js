@@ -42,6 +42,13 @@
     return match ? match[1] : '';
   }
 
+  // Get default filter date (2 months ago)
+  function getDefaultFilterDate() {
+    const date = new Date();
+    date.setMonth(date.getMonth() - 2);
+    return date.toISOString().split('T')[0];
+  }
+
   // Extract teams from the page
   function extractTeams() {
     const teams = [];
@@ -197,21 +204,51 @@
       const matches = data.data || [];
       debug('Total matches:', matches.length);
 
-      // Filter to matches from the last 2 months
-      const twoMonthsAgo = new Date();
-      twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
-      debug('Filtering matches since:', twoMonthsAgo.toISOString());
+      // Filter matches based on settings
+      const filterType = settings.matchFilterType || 'since_date';
+      const filterDate = settings.matchFilterDate || getDefaultFilterDate();
+      const filterCount = settings.matchFilterCount || 5;
 
-      const recentMatches = matches.filter(match => {
-        if (!match.updated_at) {
-          return false;
-        }
-        const matchDate = new Date(match.updated_at);
-        const isRecent = matchDate >= twoMonthsAgo;
-        // Check if any alliance has a score (more reliable than scored boolean)
+      // First, filter to only scored matches and sort by date
+      const scoredMatches = matches.filter(match => {
+        if (!match.updated_at) return false;
         const hasScores = match.alliances?.some(a => a.score !== undefined && a.score !== null);
-        return isRecent && hasScores;
+        return hasScores;
+      }).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+
+      // Group matches by event
+      const eventMatches = new Map();
+      scoredMatches.forEach(match => {
+        const eventCode = match.event?.code || 'unknown';
+        if (!eventMatches.has(eventCode)) {
+          eventMatches.set(eventCode, {
+            code: eventCode,
+            name: match.event?.name || eventCode,
+            date: match.updated_at,
+            matches: []
+          });
+        }
+        eventMatches.get(eventCode).matches.push(match);
       });
+
+      // Sort events by date (most recent first)
+      const sortedEvents = Array.from(eventMatches.values()).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      // Apply filter based on type
+      let filteredEvents;
+      if (filterType === 'all_events') {
+        filteredEvents = sortedEvents;
+      } else if (filterType === 'last_n_events') {
+        filteredEvents = sortedEvents.slice(0, filterCount);
+      } else {
+        // since_date (default)
+        const sinceDate = new Date(filterDate);
+        filteredEvents = sortedEvents.filter(event => new Date(event.date) >= sinceDate);
+      }
+
+      // Flatten back to matches
+      const recentMatches = filteredEvents.flatMap(event => event.matches);
+      debug('Filtered to', recentMatches.length, 'matches from', filteredEvents.length, 'events');
 
       debug('Recent scored matches:', recentMatches.length);
       if (recentMatches.length === 0) return null;
@@ -657,9 +694,31 @@
       <div id="vex-settings-panel" style="display: none; margin-top: 8px; padding: 12px; background: white; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
         <label style="display: block; font-size: 12px; color: #333; margin-bottom: 4px;">RobotEvents API Token:</label>
         <input type="password" id="vex-api-token" placeholder="Enter API token" value="${settings.apiToken || ''}" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; box-sizing: border-box;">
-        <button id="vex-save-token" style="margin-top: 8px; padding: 6px 12px; background: #c41230; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">Save Token</button>
         <div id="vex-token-status" style="margin-top: 4px; font-size: 11px;"></div>
         <p style="margin-top: 8px; font-size: 11px; color: #888;">Get your token from <a href="https://www.robotevents.com/api/v2" target="_blank" style="color: #c41230;">robotevents.com/api/v2</a></p>
+
+        <hr style="margin: 12px 0; border: none; border-top: 1px solid #eee;">
+
+        <label style="display: block; font-size: 12px; color: #333; margin-bottom: 8px; font-weight: 600;">Match History Filter:</label>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer;">
+            <input type="radio" name="vex-match-filter" value="since_date" ${(settings.matchFilterType || 'since_date') === 'since_date' ? 'checked' : ''}>
+            <span>Events since</span>
+            <input type="date" id="vex-filter-date" value="${settings.matchFilterDate || getDefaultFilterDate()}" style="padding: 4px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px;">
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer;">
+            <input type="radio" name="vex-match-filter" value="last_n_events" ${settings.matchFilterType === 'last_n_events' ? 'checked' : ''}>
+            <span>Last</span>
+            <input type="number" id="vex-filter-count" value="${settings.matchFilterCount || 5}" min="1" max="50" style="width: 50px; padding: 4px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px;">
+            <span>events</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer;">
+            <input type="radio" name="vex-match-filter" value="all_events" ${settings.matchFilterType === 'all_events' ? 'checked' : ''}>
+            <span>All events</span>
+          </label>
+        </div>
+
+        <button id="vex-save-settings" style="margin-top: 12px; padding: 6px 12px; background: #c41230; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; width: 100%;">Save Settings</button>
       </div>
     `;
 
@@ -675,13 +734,21 @@
       panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
     });
 
-    // Save token
-    document.getElementById('vex-save-token').addEventListener('click', () => {
-      const token = document.getElementById('vex-api-token').value.trim();
+    // Save all settings
+    document.getElementById('vex-save-settings').addEventListener('click', () => {
       const settings = loadSettings();
-      settings.apiToken = token;
+
+      // API Token
+      settings.apiToken = document.getElementById('vex-api-token').value.trim();
+
+      // Match filter settings
+      const filterType = document.querySelector('input[name="vex-match-filter"]:checked')?.value || 'since_date';
+      settings.matchFilterType = filterType;
+      settings.matchFilterDate = document.getElementById('vex-filter-date').value;
+      settings.matchFilterCount = parseInt(document.getElementById('vex-filter-count').value) || 5;
+
       saveSettings(settings);
-      document.getElementById('vex-token-status').innerHTML = '<span style="color: green;">✓ Token saved! Reload page to fetch match data.</span>';
+      document.getElementById('vex-token-status').innerHTML = '<span style="color: green;">✓ Settings saved! Reload page to apply changes.</span>';
     });
   }
 
