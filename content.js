@@ -116,12 +116,22 @@
       }
 
       // Country filter (compare by name since API returns names)
-      if (filters.countryName && filters.countryName !== 'All Countries') {
+      // Skip filter if "All" or placeholder values
+      if (filters.countryName &&
+          filters.countryName !== 'All' &&
+          filters.countryName !== 'All Countries' &&
+          !filters.countryName.includes('Not Available') &&
+          !filters.countryName.startsWith('--')) {
         if (item.country !== filters.countryName) return false;
       }
 
       // Region/State filter (compare by name since API returns names)
-      if (filters.regionName && filters.regionName !== 'All Regions') {
+      // Skip filter if "All" or "-- Not Available --" or similar placeholder
+      if (filters.regionName &&
+          filters.regionName !== 'All' &&
+          filters.regionName !== 'All Regions' &&
+          !filters.regionName.includes('Not Available') &&
+          !filters.regionName.startsWith('--')) {
         if (item.region !== filters.regionName) return false;
       }
 
@@ -626,6 +636,8 @@
     if (scores.length === 0) return null;
 
     const sortedScores = [...scores].sort((a, b) => a - b);
+    const sortedProgramming = [...programming].sort((a, b) => a - b);
+    const sortedDriver = [...driver].sort((a, b) => a - b);
 
     return {
       count: data.length,
@@ -633,7 +645,9 @@
       max: Math.max(...scores),
       median: sortedScores[Math.floor(sortedScores.length / 2)],
       avgProgramming: programming.length > 0 ? programming.reduce((a, b) => a + b, 0) / programming.length : 0,
-      avgDriver: driver.length > 0 ? driver.reduce((a, b) => a + b, 0) / driver.length : 0
+      avgDriver: driver.length > 0 ? driver.reduce((a, b) => a + b, 0) / driver.length : 0,
+      medianProgramming: sortedProgramming.length > 0 ? sortedProgramming[Math.floor(sortedProgramming.length / 2)] : 0,
+      medianDriver: sortedDriver.length > 0 ? sortedDriver[Math.floor(sortedDriver.length / 2)] : 0
     };
   }
 
@@ -685,9 +699,19 @@
         ${showFiltered ? `<span class="vex-stat-value vex-stat-global">${globalStats.avgProgramming.toFixed(1)}</span>` : ''}
       </div>
       <div class="vex-stat-row">
+        <span class="vex-stat-label">Median Auto:</span>
+        <span class="vex-stat-value">${showFiltered ? filteredStats.medianProgramming : globalStats.medianProgramming}</span>
+        ${showFiltered ? `<span class="vex-stat-value vex-stat-global">${globalStats.medianProgramming}</span>` : ''}
+      </div>
+      <div class="vex-stat-row">
         <span class="vex-stat-label">Avg Driver:</span>
         <span class="vex-stat-value">${showFiltered ? filteredStats.avgDriver.toFixed(1) : globalStats.avgDriver.toFixed(1)}</span>
         ${showFiltered ? `<span class="vex-stat-value vex-stat-global">${globalStats.avgDriver.toFixed(1)}</span>` : ''}
+      </div>
+      <div class="vex-stat-row">
+        <span class="vex-stat-label">Median Driver:</span>
+        <span class="vex-stat-value">${showFiltered ? filteredStats.medianDriver : globalStats.medianDriver}</span>
+        ${showFiltered ? `<span class="vex-stat-value vex-stat-global">${globalStats.medianDriver}</span>` : ''}
       </div>
     `;
   }
