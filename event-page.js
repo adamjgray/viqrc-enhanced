@@ -7,7 +7,7 @@
     name: 'VIQRC Enhanced',
     storageKey: 'vex-skills-enhancer-settings',
     skillsApiUrl: 'https://www.robotevents.com/api/seasons/196/skills',
-    debug: false  // Set to true for verbose logging
+    debug: true  // Set to true for verbose logging
   };
 
   // Logging utilities
@@ -118,43 +118,53 @@
     return teams;
   }
 
-  // Fetch skills data from API
+  // Fetch skills data from API for both grade levels
   async function fetchSkillsData() {
     try {
-      // Get grade level from page if possible
-      const gradeLevel = document.body.textContent.includes('Middle School') ? 'Middle School' :
-                        document.body.textContent.includes('Elementary') ? 'Elementary' : '';
+      skillsData = new Map();
 
-      let url = `${CONFIG.skillsApiUrl}?post_season=0`;
-      if (gradeLevel) {
-        url += `&grade_level=${encodeURIComponent(gradeLevel)}`;
+      // Fetch both Elementary and Middle School data
+      const gradeLevels = ['Elementary', 'Middle School'];
+
+      for (const gradeLevel of gradeLevels) {
+        const url = `${CONFIG.skillsApiUrl}?post_season=0&grade_level=${encodeURIComponent(gradeLevel)}`;
+        debug('Fetching skills data for', gradeLevel);
+
+        const response = await fetch(url);
+        if (!response.ok) {
+          debug('Failed to fetch', gradeLevel, '- status:', response.status);
+          continue;
+        }
+
+        const data = await response.json();
+        debug('Received', data.length, 'teams from', gradeLevel);
+
+        // Add to map (don't overwrite if team already exists with higher score)
+        data.forEach(item => {
+          const teamNum = item.team?.team?.toUpperCase();
+          if (teamNum) {
+            const existing = skillsData.get(teamNum);
+            const newScore = parseFloat(item.scores?.score || 0);
+
+            // Only add if team doesn't exist or new score is higher
+            if (!existing || newScore > existing.score) {
+              skillsData.set(teamNum, {
+                teamId: item.team?.id || null,
+                score: newScore,
+                programming: parseFloat(item.scores?.programming || 0),
+                driver: parseFloat(item.scores?.driver || 0),
+                rank: item.rank || 0,
+                gradeLevel: item.team?.gradeLevel || '',
+                city: item.team?.city || '',
+                region: item.team?.region || '',
+                country: item.team?.country || ''
+              });
+            }
+          }
+        });
       }
 
-      debug('Fetching skills data');
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`API returned ${response.status}`);
-
-      const data = await response.json();
-      debug('Received', data.length, 'teams from skills API');
-
-      // Create a map for quick lookup
-      skillsData = new Map();
-      data.forEach(item => {
-        const teamNum = item.team?.team?.toUpperCase();
-        if (teamNum) {
-          skillsData.set(teamNum, {
-            teamId: item.team?.id || null,
-            score: parseFloat(item.scores?.score || 0),
-            programming: parseFloat(item.scores?.programming || 0),
-            driver: parseFloat(item.scores?.driver || 0),
-            rank: item.rank || 0,
-            gradeLevel: item.team?.gradeLevel || '',
-            city: item.team?.city || '',
-            region: item.team?.region || '',
-            country: item.team?.country || ''
-          });
-        }
-      });
+      debug('Total teams in skillsData:', skillsData.size);
 
       return true;
     } catch (err) {

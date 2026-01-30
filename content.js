@@ -306,6 +306,7 @@
 
     const originalStandings = document.querySelector('#standings');
     const standingsNav = document.querySelector('#standings-nav');
+    debug('Building table - originalStandings:', !!originalStandings, 'filteredData length:', filteredData.length);
 
     // If not using custom table, just enhance original and return
     if (!settings.useCustomTable) {
@@ -328,7 +329,13 @@
     if (!container) {
       container = document.createElement('div');
       container.id = 'vex-custom-table-container';
-      originalStandings?.parentNode?.insertBefore(container, originalStandings);
+      if (originalStandings?.parentNode) {
+        originalStandings.parentNode.insertBefore(container, originalStandings);
+      } else {
+        // Fallback: find a suitable place to insert the table
+        const main = document.querySelector('main') || document.querySelector('.container') || document.body;
+        main.appendChild(container);
+      }
     }
 
     const filteredScores = filteredData.map(d => d.score);
