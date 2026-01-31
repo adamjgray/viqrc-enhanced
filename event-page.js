@@ -7,7 +7,7 @@
     name: 'VIQRC Enhanced',
     storageKey: 'vex-skills-enhancer-settings',
     skillsApiUrl: 'https://www.robotevents.com/api/seasons/196/skills',
-    debug: true  // Set to true for verbose logging
+    debug: false  // Set to true for verbose logging
   };
 
   // Logging utilities
@@ -443,6 +443,10 @@
         <tbody>
     `;
 
+    // Get highlighted teams for row styling
+    const competitionTeams = getCompetitionTeams();
+    const highlightedTeams = getHighlightedTeams();
+
     mergedData.forEach((team, idx) => {
       const searchText = `${team.team} ${team.teamName} ${team.organization}`.toLowerCase();
       const matchAvgDisplay = team.recentMatchAvg !== null
@@ -450,8 +454,16 @@
         : '-';
       const matchMaxDisplay = team.recentMatchMax !== null ? team.recentMatchMax : '-';
 
+      // Determine row highlighting
+      const teamUpper = team.team.toUpperCase();
+      const isCompetition = competitionTeams.has(teamUpper);
+      const isHighlighted = highlightedTeams.has(teamUpper);
+      let rowClass = '';
+      if (isHighlighted) rowClass = 'vex-highlighted-row';
+      else if (isCompetition) rowClass = 'vex-competition-row';
+
       html += `
-        <tr data-team="${team.team}" data-search="${searchText}" data-idx="${idx}">
+        <tr class="${rowClass}" data-team="${team.team}" data-search="${searchText}" data-idx="${idx}">
           <td>${idx + 1}</td>
           <td class="vex-team-number">${team.team}</td>
           <td>${team.teamName || '-'}</td>
@@ -664,6 +676,24 @@
     } catch (e) {
       return { competitionTeams: {} };
     }
+  }
+
+  // Get competition teams from all saved competitions
+  function getCompetitionTeams() {
+    const settings = loadSettings();
+    const teams = new Set();
+    Object.values(settings.competitionTeams || {}).forEach(comp => {
+      if (comp.teams) {
+        comp.teams.forEach(team => teams.add(team.toUpperCase()));
+      }
+    });
+    return teams;
+  }
+
+  // Get manually highlighted teams
+  function getHighlightedTeams() {
+    const settings = loadSettings();
+    return new Set((settings.highlightedTeams || []).map(t => t.toUpperCase()));
   }
 
   // Save settings

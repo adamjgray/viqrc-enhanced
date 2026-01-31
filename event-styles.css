@@ -148,6 +148,18 @@
   background: #f5f5f5;
 }
 
+/* Highlighted team (yellow) - manual highlights */
+.vex-event-table .vex-highlighted-row,
+.vex-event-table .vex-highlighted-row td {
+  background: #fff3cd !important;
+}
+
+/* Competition team (green) - from loaded competitions */
+.vex-event-table .vex-competition-row,
+.vex-event-table .vex-competition-row td {
+  background: #e8f5e9 !important;
+}
+
 .vex-event-table .vex-team-number {
   font-weight: 600;
   color: #c41230;
