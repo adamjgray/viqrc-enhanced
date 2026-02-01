@@ -127,13 +127,13 @@
 
   // Fetch skills data from API for both grade levels
   async function fetchSkillsData() {
-    try {
-      skillsData = new Map();
+    skillsData = new Map();
 
-      // Fetch both Elementary and Middle School data
-      const gradeLevels = ['Elementary', 'Middle School'];
+    // Fetch both Elementary and Middle School data
+    const gradeLevels = ['Elementary', 'Middle School'];
 
-      for (const gradeLevel of gradeLevels) {
+    for (const gradeLevel of gradeLevels) {
+      try {
         const url = `${CONFIG.skillsApiUrl}?post_season=0&grade_level=${encodeURIComponent(gradeLevel)}`;
         debug('Fetching skills data for', gradeLevel);
 
@@ -169,33 +169,42 @@
             }
           }
         });
+      } catch (err) {
+        error('Failed to fetch skills data for', gradeLevel, ':', err);
+        // Continue with other grade levels
       }
-
-      debug('Total teams in skillsData:', skillsData.size);
-
-      return true;
-    } catch (err) {
-      error('Failed to fetch skills data:', err);
-      return false;
     }
+
+    debug('Total teams in skillsData:', skillsData.size);
+    return skillsData.size > 0;
+  }
+
+  // Check if API token is configured
+  function hasApiToken() {
+    const settings = loadSettings();
+    return !!(settings.apiToken && settings.apiToken.trim());
   }
 
   // Fetch match data for a team and calculate recent match average
   async function fetchRecentMatchAverage(teamId) {
     if (!teamId) return null;
 
+    const settings = loadSettings();
+    if (!settings.apiToken) {
+      debug('No API token configured, skipping match fetch');
+      return null;
+    }
+
     try {
       const url = `https://www.robotevents.com/api/v2/teams/${teamId}/matches?season%5B%5D=196&per_page=250`;
       debug('Fetching matches from:', url);
-      const settings = loadSettings();
-      const headers = {};
-      if (settings.apiToken) {
-        headers['Authorization'] = `Bearer ${settings.apiToken}`;
-      }
+      const headers = {
+        'Authorization': `Bearer ${settings.apiToken}`
+      };
       const response = await fetch(url, { headers });
       debug('Response status:', response.status);
       if (!response.ok) {
-        debug('Response not ok, body:', await response.text().catch(() => 'N/A'));
+        debug('Response not ok for team', teamId, '- status:', response.status);
         return null;
       }
 
@@ -320,24 +329,39 @@
   async function fetchAllMatchAverages(teams) {
     const matchAverages = new Map();
 
-    // Process in batches to avoid rate limiting
-    const batchSize = 5;
-    for (let i = 0; i < teams.length; i += batchSize) {
-      const batch = teams.slice(i, i + batchSize);
-      const promises = batch.map(async team => {
-        if (team.teamId) {
-          const result = await fetchRecentMatchAverage(team.teamId);
-          if (result) {
-            matchAverages.set(team.team, result);
-          }
-        }
-      });
-      await Promise.all(promises);
+    // Skip if no API token configured
+    if (!hasApiToken()) {
+      debug('No API token configured, skipping match data fetch');
+      return matchAverages;
+    }
 
-      // Small delay between batches
-      if (i + batchSize < teams.length) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+    try {
+      // Process in batches to avoid rate limiting
+      const batchSize = 5;
+      for (let i = 0; i < teams.length; i += batchSize) {
+        const batch = teams.slice(i, i + batchSize);
+        const promises = batch.map(async team => {
+          if (team.teamId) {
+            try {
+              const result = await fetchRecentMatchAverage(team.teamId);
+              if (result) {
+                matchAverages.set(team.team, result);
+              }
+            } catch (err) {
+              debug('Error fetching match data for team', team.team, err);
+              // Continue with other teams
+            }
+          }
+        });
+        await Promise.all(promises);
+
+        // Small delay between batches
+        if (i + batchSize < teams.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
       }
+    } catch (err) {
+      error('Error in fetchAllMatchAverages:', err);
     }
 
     return matchAverages;
@@ -420,6 +444,9 @@
       return sortDirection === 'desc' ? '<span class="vex-sort-icon active">↓</span>' : '<span class="vex-sort-icon active">↑</span>';
     };
 
+    // Check if we should show match columns (only if API token is configured)
+    const showMatchColumns = hasApiToken();
+
     // Build table
     let html = `
       <div class="vex-event-controls">
@@ -436,8 +463,8 @@
             <th class="vex-sortable" data-sort="score">Score ${sortIndicator('score')}</th>
             <th class="vex-sortable" data-sort="programming">Auto ${sortIndicator('programming')}</th>
             <th class="vex-sortable" data-sort="driver">Driver ${sortIndicator('driver')}</th>
-            <th class="vex-sortable" data-sort="recentMatchAvg">Match Avg ${sortIndicator('recentMatchAvg')}</th>
-            <th class="vex-sortable" data-sort="recentMatchMax">Match Max ${sortIndicator('recentMatchMax')}</th>
+            ${showMatchColumns ? `<th class="vex-sortable" data-sort="recentMatchAvg">Match Avg ${sortIndicator('recentMatchAvg')}</th>` : ''}
+            ${showMatchColumns ? `<th class="vex-sortable" data-sort="recentMatchMax">Match Max ${sortIndicator('recentMatchMax')}</th>` : ''}
           </tr>
         </thead>
         <tbody>
@@ -471,8 +498,8 @@
           <td class="vex-score-cell">${team.score || '-'}</td>
           <td>${team.programming || '-'}</td>
           <td>${team.driver || '-'}</td>
-          <td>${matchAvgDisplay}</td>
-          <td>${matchMaxDisplay}</td>
+          ${showMatchColumns ? `<td>${matchAvgDisplay}</td>` : ''}
+          ${showMatchColumns ? `<td>${matchMaxDisplay}</td>` : ''}
         </tr>
       `;
     });
@@ -849,40 +876,58 @@
   async function init() {
     log('loaded');
 
-    // Wait for the page to fully load (including dynamic content)
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    try {
+      // Wait for the page to fully load (including dynamic content)
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // Extract teams from the page
-    eventTeams = extractTeams();
-    debug('Found', eventTeams.length, 'teams on page');
+      // Extract teams from the page
+      eventTeams = extractTeams();
+      debug('Found', eventTeams.length, 'teams on page');
 
-    if (eventTeams.length > 0) {
-      // Fetch skills data
-      await fetchSkillsData();
+      if (eventTeams.length > 0) {
+        // Fetch skills data
+        try {
+          await fetchSkillsData();
+        } catch (err) {
+          error('Failed to fetch skills data:', err);
+        }
 
-      // Build initial table (without match averages)
-      buildEnhancedTable();
-
-      // Fetch match averages in the background and rebuild table when done
-      if (skillsData) {
-        const teamsWithIds = eventTeams.map(team => ({
-          team: team.team,
-          teamId: skillsData.get(team.team)?.teamId || null
-        })).filter(t => t.teamId);
-
-        debug('Teams with IDs:', teamsWithIds);
-        debug('Fetching match data for', teamsWithIds.length, 'teams...');
-        matchAverages = await fetchAllMatchAverages(teamsWithIds);
-        debug('Got match averages for', matchAverages.size, 'teams');
-
-        // Rebuild table with match averages
+        // Build initial table (without match averages)
         buildEnhancedTable();
+
+        // Fetch match averages in the background and rebuild table when done
+        // Only attempt if API token is configured
+        if (skillsData && hasApiToken()) {
+          try {
+            const teamsWithIds = eventTeams.map(team => ({
+              team: team.team,
+              teamId: skillsData.get(team.team)?.teamId || null
+            })).filter(t => t.teamId);
+
+            debug('Teams with IDs:', teamsWithIds);
+            debug('Fetching match data for', teamsWithIds.length, 'teams...');
+            matchAverages = await fetchAllMatchAverages(teamsWithIds);
+            debug('Got match averages for', matchAverages.size, 'teams');
+
+            // Rebuild table with match averages
+            buildEnhancedTable();
+          } catch (err) {
+            error('Failed to fetch match averages:', err);
+            // Table is already built without match data, so continue
+          }
+        }
       }
+    } catch (err) {
+      error('Error during initialization:', err);
     }
 
-    // Create capture button
-    createCaptureButton();
-    checkExistingCapture();
+    // Create capture button (always, even if there are errors)
+    try {
+      createCaptureButton();
+      checkExistingCapture();
+    } catch (err) {
+      error('Failed to create capture button:', err);
+    }
   }
 
   if (document.readyState === 'loading') {
