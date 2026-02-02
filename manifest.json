@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "VIQRC Enhanced",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Augments the RobotEvents VEX IQ Skills Standings page with statistics, highlighting, and more!",
   "permissions": ["storage"],
   "host_permissions": [

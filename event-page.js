@@ -15,6 +15,47 @@
   const debug = (...args) => CONFIG.debug && console.log(`${CONFIG.name} [DEBUG] -`, ...args);
   const error = (...args) => console.error(`${CONFIG.name} -`, ...args);
 
+  // Fetch with retry and exponential backoff for rate limiting
+  async function fetchWithRetry(url, options = {}, maxRetries = 3) {
+    let lastError;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(url, options);
+
+        if (response.status === 429) {
+          // Rate limited - get retry delay from header or use exponential backoff
+          const retryAfter = response.headers.get('Retry-After');
+          let delay;
+          if (retryAfter) {
+            delay = parseInt(retryAfter, 10) * 1000;
+          } else {
+            // Exponential backoff: 1s, 2s, 4s, 8s...
+            delay = Math.pow(2, attempt) * 1000;
+          }
+
+          if (attempt < maxRetries) {
+            debug(`Rate limited (429), retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          } else {
+            debug(`Rate limited (429), max retries exceeded`);
+            return response; // Return the 429 response after max retries
+          }
+        }
+
+        return response;
+      } catch (err) {
+        lastError = err;
+        if (attempt < maxRetries) {
+          const delay = Math.pow(2, attempt) * 1000;
+          debug(`Fetch error, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries}):`, err.message);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+    throw lastError;
+  }
+
   let eventTeams = [];      // Teams registered for this event
   let skillsData = null;    // Skills data for all teams
   let matchAverages = null; // Recent match averages for teams
@@ -137,7 +178,7 @@
         const url = `${CONFIG.skillsApiUrl}?post_season=0&grade_level=${encodeURIComponent(gradeLevel)}`;
         debug('Fetching skills data for', gradeLevel);
 
-        const response = await fetch(url);
+        const response = await fetchWithRetry(url);
         if (!response.ok) {
           debug('Failed to fetch', gradeLevel, '- status:', response.status);
           continue;
@@ -201,7 +242,7 @@
       const headers = {
         'Authorization': `Bearer ${settings.apiToken}`
       };
-      const response = await fetch(url, { headers });
+      const response = await fetchWithRetry(url, { headers });
       debug('Response status:', response.status);
       if (!response.ok) {
         debug('Response not ok for team', teamId, '- status:', response.status);
