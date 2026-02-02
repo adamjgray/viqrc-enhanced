@@ -59,6 +59,8 @@
   let eventTeams = [];      // Teams registered for this event
   let skillsData = null;    // Skills data for all teams
   let matchAverages = null; // Recent match averages for teams
+  let eventAwards = null;   // Awards won at this event (Map of team -> array of awards)
+  let eventFinalized = false; // Whether the event has already occurred
   let sortColumn = 'score';
   let sortDirection = 'desc';
 
@@ -81,6 +83,53 @@
     const text = document.body.textContent;
     const match = text.match(/Capacity:\s*(\d+)/i);
     return match ? match[1] : '';
+  }
+
+  // Fetch event info from API (includes ID and finalization status)
+  async function fetchEventInfo(sku) {
+    if (!sku) return null;
+
+    const settings = loadSettings();
+    if (!settings.apiToken) {
+      debug('No API token configured, skipping event info fetch');
+      return null;
+    }
+
+    try {
+      const url = `https://www.robotevents.com/api/v2/events?sku[]=${encodeURIComponent(sku)}`;
+      debug('Fetching event info from:', url);
+
+      const headers = {
+        'Authorization': `Bearer ${settings.apiToken}`
+      };
+      const response = await fetchWithRetry(url, { headers });
+
+      if (!response.ok) {
+        debug('Failed to fetch event info - status:', response.status);
+        return null;
+      }
+
+      const data = await response.json();
+      const events = data.data || [];
+
+      if (events.length > 0) {
+        const event = events[0];
+        debug('Found event:', event.id, 'finalized:', event.awards_finalized);
+        return {
+          id: event.id,
+          name: event.name,
+          finalized: event.awards_finalized || false,
+          start: event.start,
+          end: event.end
+        };
+      }
+
+      debug('No event found for SKU:', sku);
+      return null;
+    } catch (err) {
+      error('Failed to fetch event info:', err);
+      return null;
+    }
   }
 
   // Get default filter date (2 months ago)
@@ -166,7 +215,226 @@
     return teams;
   }
 
-  // Fetch skills data from API for both grade levels
+  // Fetch event-specific skills data
+  async function fetchEventSkillsData(eventId) {
+    if (!eventId) return false;
+
+    const settings = loadSettings();
+    if (!settings.apiToken) {
+      debug('No API token configured, skipping event skills fetch');
+      return false;
+    }
+
+    try {
+      skillsData = new Map();
+
+      const url = `https://www.robotevents.com/api/v2/events/${eventId}/skills?per_page=250`;
+      debug('Fetching event skills from:', url);
+
+      const headers = {
+        'Authorization': `Bearer ${settings.apiToken}`
+      };
+      const response = await fetchWithRetry(url, { headers });
+
+      if (!response.ok) {
+        debug('Failed to fetch event skills - status:', response.status);
+        return false;
+      }
+
+      const data = await response.json();
+      const skills = data.data || [];
+      debug('Received', skills.length, 'skills entries from event');
+
+      // Log first skill entry to debug format
+      if (skills.length > 0) {
+        debug('First skills entry:', JSON.stringify(skills[0], null, 2));
+      }
+
+      // Group by team and find best scores for each type
+      const teamSkills = new Map();
+
+      skills.forEach(item => {
+        const teamNum = item.team?.name?.toUpperCase();
+        if (!teamNum) return;
+
+        if (!teamSkills.has(teamNum)) {
+          teamSkills.set(teamNum, {
+            teamId: item.team?.id || null,
+            programming: 0,
+            driver: 0,
+            gradeLevel: item.team?.grade || '',
+            city: item.team?.location?.city || '',
+            region: item.team?.location?.region || '',
+            country: item.team?.location?.country || ''
+          });
+        }
+
+        const team = teamSkills.get(teamNum);
+        const score = item.score || 0;
+
+        if (item.type === 'programming' && score > team.programming) {
+          team.programming = score;
+        } else if (item.type === 'driver' && score > team.driver) {
+          team.driver = score;
+        }
+      });
+
+      // Calculate combined scores and store in skillsData
+      teamSkills.forEach((team, teamNum) => {
+        skillsData.set(teamNum, {
+          ...team,
+          score: team.programming + team.driver
+        });
+      });
+
+      debug('Processed event skills for', skillsData.size, 'teams');
+
+      // Log a few sample entries to verify data
+      let count = 0;
+      for (const [teamNum, data] of skillsData) {
+        if (count < 3) {
+          debug('Sample skills entry:', teamNum, data);
+          count++;
+        }
+      }
+
+      return skillsData.size > 0;
+    } catch (err) {
+      error('Failed to fetch event skills:', err);
+      return false;
+    }
+  }
+
+  // Fetch awards data for an event
+  async function fetchEventAwards(eventId) {
+    if (!eventId) return false;
+
+    const settings = loadSettings();
+    if (!settings.apiToken) {
+      debug('No API token configured, skipping event awards fetch');
+      return false;
+    }
+
+    try {
+      eventAwards = new Map();
+
+      const url = `https://www.robotevents.com/api/v2/events/${eventId}/awards?per_page=250`;
+      debug('Fetching event awards from:', url);
+
+      const headers = {
+        'Authorization': `Bearer ${settings.apiToken}`
+      };
+      const response = await fetchWithRetry(url, { headers });
+
+      if (!response.ok) {
+        debug('Failed to fetch event awards - status:', response.status);
+        return false;
+      }
+
+      const data = await response.json();
+      const awards = data.data || [];
+      debug('Received', awards.length, 'awards from event');
+
+      // Group awards by team
+      awards.forEach(award => {
+        const teamWinners = award.teamWinners || [];
+        teamWinners.forEach(winner => {
+          const teamNum = winner.team?.name?.toUpperCase();
+          if (teamNum) {
+            if (!eventAwards.has(teamNum)) {
+              eventAwards.set(teamNum, []);
+            }
+            eventAwards.get(teamNum).push({
+              name: award.title || 'Award',
+              order: award.order || 999
+            });
+          }
+        });
+      });
+
+      debug('Processed awards for', eventAwards.size, 'teams');
+      return eventAwards.size > 0;
+    } catch (err) {
+      error('Failed to fetch event awards:', err);
+      return false;
+    }
+  }
+
+  // Fetch season awards for a single team
+  async function fetchTeamSeasonAwards(teamId) {
+    if (!teamId) return [];
+
+    const settings = loadSettings();
+    if (!settings.apiToken) return [];
+
+    try {
+      const url = `https://www.robotevents.com/api/v2/teams/${teamId}/awards?season[]=196&per_page=250`;
+      const headers = {
+        'Authorization': `Bearer ${settings.apiToken}`
+      };
+      const response = await fetchWithRetry(url, { headers });
+
+      if (!response.ok) {
+        debug('Failed to fetch team awards - status:', response.status);
+        return [];
+      }
+
+      const data = await response.json();
+      const awards = data.data || [];
+
+      return awards.map(award => ({
+        name: award.title || 'Award',
+        event: award.event?.name || 'Unknown Event',
+        eventCode: award.event?.code || '',
+        order: award.order || 999
+      }));
+    } catch (err) {
+      debug('Failed to fetch team awards:', err);
+      return [];
+    }
+  }
+
+  // Fetch season awards for all teams (with rate limiting)
+  async function fetchAllSeasonAwards(teams) {
+    eventAwards = new Map();
+
+    if (!hasApiToken()) {
+      debug('No API token configured, skipping season awards fetch');
+      return;
+    }
+
+    try {
+      // Process in batches to avoid rate limiting
+      const batchSize = 5;
+      for (let i = 0; i < teams.length; i += batchSize) {
+        const batch = teams.slice(i, i + batchSize);
+        const promises = batch.map(async team => {
+          if (team.teamId) {
+            try {
+              const awards = await fetchTeamSeasonAwards(team.teamId);
+              if (awards.length > 0) {
+                eventAwards.set(team.team.toUpperCase(), awards);
+              }
+            } catch (err) {
+              debug('Error fetching awards for team', team.team, err);
+            }
+          }
+        });
+        await Promise.all(promises);
+
+        // Small delay between batches
+        if (i + batchSize < teams.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      debug('Fetched season awards for', eventAwards.size, 'teams');
+    } catch (err) {
+      error('Error in fetchAllSeasonAwards:', err);
+    }
+  }
+
+  // Fetch skills data from API for both grade levels (global standings)
   async function fetchSkillsData() {
     skillsData = new Map();
 
@@ -226,8 +494,57 @@
     return !!(settings.apiToken && settings.apiToken.trim());
   }
 
-  // Fetch match data for a team and calculate recent match average
-  async function fetchRecentMatchAverage(teamId) {
+  // Fetch team IDs for all teams in one API call
+  async function fetchTeamIds(teamNumbers) {
+    if (!teamNumbers || teamNumbers.length === 0) return new Map();
+
+    const settings = loadSettings();
+    if (!settings.apiToken) {
+      debug('No API token configured, skipping team ID fetch');
+      return new Map();
+    }
+
+    try {
+      // Build query string with all team numbers
+      // program[]=41 limits to VEX IQ teams only
+      const numberParams = teamNumbers.map(num => `number[]=${encodeURIComponent(num)}`).join('&');
+      const url = `https://www.robotevents.com/api/v2/teams?${numberParams}&program[]=41&season[]=196&per_page=250`;
+      debug('Fetching team IDs from:', url);
+
+      const headers = {
+        'Authorization': `Bearer ${settings.apiToken}`
+      };
+      const response = await fetchWithRetry(url, { headers });
+
+      if (!response.ok) {
+        debug('Failed to fetch team IDs - status:', response.status);
+        return new Map();
+      }
+
+      const data = await response.json();
+      const teams = data.data || [];
+      debug('Received', teams.length, 'teams from API');
+
+      // Build map of team number -> team ID
+      const teamIdMap = new Map();
+      teams.forEach(team => {
+        const teamNum = team.number?.toUpperCase();
+        if (teamNum && team.id) {
+          teamIdMap.set(teamNum, team.id);
+        }
+      });
+
+      debug('Built teamIdMap with', teamIdMap.size, 'entries');
+      return teamIdMap;
+    } catch (err) {
+      error('Failed to fetch team IDs:', err);
+      return new Map();
+    }
+  }
+
+  // Fetch match data for a team and calculate match average
+  // If eventCodeFilter is provided, only include matches from that event
+  async function fetchMatchData(teamId, eventCodeFilter = null) {
     if (!teamId) return null;
 
     const settings = loadSettings();
@@ -254,17 +571,24 @@
       const matches = data.data || [];
       debug('Total matches:', matches.length);
 
-      // Filter matches based on settings
-      const filterType = settings.matchFilterType || 'since_date';
-      const filterDate = settings.matchFilterDate || getDefaultFilterDate();
-      const filterCount = settings.matchFilterCount || 5;
-
       // First, filter to only scored matches and sort by date
-      const scoredMatches = matches.filter(match => {
+      let scoredMatches = matches.filter(match => {
         if (!match.updated_at) return false;
         const hasScores = match.alliances?.some(a => a.score !== undefined && a.score !== null);
         return hasScores;
       }).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+
+      // If filtering by specific event, only include matches from that event
+      if (eventCodeFilter) {
+        // Log first match's event code to debug format mismatch
+        if (scoredMatches.length > 0) {
+          debug('Event code filter:', eventCodeFilter, 'First match event code:', scoredMatches[0]?.event?.code);
+        }
+        scoredMatches = scoredMatches.filter(match =>
+          match.event?.code?.toUpperCase() === eventCodeFilter.toUpperCase()
+        );
+        debug('Filtered to', scoredMatches.length, 'matches from event', eventCodeFilter);
+      }
 
       // Group matches by event
       const eventMatches = new Map();
@@ -284,16 +608,27 @@
       // Sort events by date (most recent first)
       const sortedEvents = Array.from(eventMatches.values()).sort((a, b) => new Date(b.date) - new Date(a.date));
 
-      // Apply filter based on type
+      // Apply filter based on type (skip if filtering by specific event)
       let filteredEvents;
-      if (filterType === 'all_events') {
+      if (eventCodeFilter) {
+        // Already filtered above, use all remaining events
         filteredEvents = sortedEvents;
-      } else if (filterType === 'last_n_events') {
-        filteredEvents = sortedEvents.slice(0, filterCount);
       } else {
-        // since_date (default)
-        const sinceDate = new Date(filterDate);
-        filteredEvents = sortedEvents.filter(event => new Date(event.date) >= sinceDate);
+        // Apply settings-based filter for recent matches
+        const settings = loadSettings();
+        const filterType = settings.matchFilterType || 'since_date';
+        const filterDate = settings.matchFilterDate || getDefaultFilterDate();
+        const filterCount = settings.matchFilterCount || 5;
+
+        if (filterType === 'all_events') {
+          filteredEvents = sortedEvents;
+        } else if (filterType === 'last_n_events') {
+          filteredEvents = sortedEvents.slice(0, filterCount);
+        } else {
+          // since_date (default)
+          const sinceDate = new Date(filterDate);
+          filteredEvents = sortedEvents.filter(event => new Date(event.date) >= sinceDate);
+        }
       }
 
       // Flatten back to matches
@@ -367,7 +702,8 @@
   }
 
   // Fetch match averages for all teams (with rate limiting)
-  async function fetchAllMatchAverages(teams) {
+  // If eventCode is provided, only include matches from that event
+  async function fetchAllMatchAverages(teams, eventCode = null) {
     const matchAverages = new Map();
 
     // Skip if no API token configured
@@ -384,7 +720,7 @@
         const promises = batch.map(async team => {
           if (team.teamId) {
             try {
-              const result = await fetchRecentMatchAverage(team.teamId);
+              const result = await fetchMatchData(team.teamId, eventCode);
               if (result) {
                 matchAverages.set(team.team, result);
               }
@@ -488,11 +824,17 @@
     // Check if we should show match columns (only if API token is configured)
     const showMatchColumns = hasApiToken();
 
+    // Column labels depend on whether event is finalized
+    const avgLabel = eventFinalized
+      ? 'Event Avg <span class="vex-info-icon" title="Average of all matches at this event. Unlike official rankings, no low scores are dropped.">ⓘ</span>'
+      : 'Match Avg';
+    const maxLabel = eventFinalized ? 'Event Max' : 'Match Max';
+
     // Build table
     let html = `
       <div class="vex-event-controls">
         <input type="text" id="vex-event-search" placeholder="Search teams..." />
-        <span class="vex-event-count">${mergedData.length} teams (${teamsWithScores} with skills scores)</span>
+        <span class="vex-event-count">${mergedData.length} teams (${teamsWithScores} with skills scores)${eventFinalized ? ' - Event Completed' : ''}</span>
       </div>
       <table class="vex-event-table">
         <thead>
@@ -504,8 +846,9 @@
             <th class="vex-sortable" data-sort="score">Score ${sortIndicator('score')}</th>
             <th class="vex-sortable" data-sort="programming">Auto ${sortIndicator('programming')}</th>
             <th class="vex-sortable" data-sort="driver">Driver ${sortIndicator('driver')}</th>
-            ${showMatchColumns ? `<th class="vex-sortable" data-sort="recentMatchAvg">Match Avg ${sortIndicator('recentMatchAvg')}</th>` : ''}
-            ${showMatchColumns ? `<th class="vex-sortable" data-sort="recentMatchMax">Match Max ${sortIndicator('recentMatchMax')}</th>` : ''}
+            ${showMatchColumns ? `<th class="vex-sortable" data-sort="recentMatchAvg">${avgLabel} ${sortIndicator('recentMatchAvg')}</th>` : ''}
+            ${showMatchColumns ? `<th class="vex-sortable" data-sort="recentMatchMax">${maxLabel} ${sortIndicator('recentMatchMax')}</th>` : ''}
+            ${showMatchColumns ? `<th>${eventFinalized ? 'Awards' : 'Season Awards'}</th>` : ''}
           </tr>
         </thead>
         <tbody>
@@ -517,10 +860,32 @@
 
     mergedData.forEach((team, idx) => {
       const searchText = `${team.team} ${team.teamName} ${team.organization}`.toLowerCase();
+      const matchTooltip = eventFinalized
+        ? `${team.recentMatchCount} matches at this event`
+        : `${team.recentMatchCount} recent matches`;
       const matchAvgDisplay = team.recentMatchAvg !== null
-        ? `<span title="${team.recentMatchCount} matches in last 2 months">${team.recentMatchAvg}</span>`
+        ? `<span title="${matchTooltip}">${team.recentMatchAvg}</span>`
         : '-';
       const matchMaxDisplay = team.recentMatchMax !== null ? team.recentMatchMax : '-';
+
+      // Build awards display
+      let awardsDisplay = '-';
+      if (showMatchColumns) {
+        const teamAwards = eventAwards?.get(team.team.toUpperCase()) || [];
+        if (teamAwards.length > 0) {
+          if (eventFinalized) {
+            // For finalized events, just show trophy with award name
+            awardsDisplay = teamAwards.map(award =>
+              `<span class="vex-award-trophy" title="${award.name}">🏆</span>`
+            ).join('');
+          } else {
+            // For non-finalized events, show trophy with award name and event
+            awardsDisplay = teamAwards.map(award =>
+              `<span class="vex-award-trophy" title="${award.name} @ ${award.event}">🏆</span>`
+            ).join('');
+          }
+        }
+      }
 
       // Determine row highlighting
       const teamUpper = team.team.toUpperCase();
@@ -541,6 +906,7 @@
           <td>${team.driver || '-'}</td>
           ${showMatchColumns ? `<td>${matchAvgDisplay}</td>` : ''}
           ${showMatchColumns ? `<td>${matchMaxDisplay}</td>` : ''}
+          ${showMatchColumns ? `<td class="vex-awards-cell">${awardsDisplay}</td>` : ''}
         </tr>
       `;
     });
@@ -674,7 +1040,7 @@
           </div>
 
           <div class="vex-modal-section">
-            <h3>Recent Match Performance</h3>
+            <h3>${eventFinalized ? 'Event Match Performance' : 'Recent Match Performance'}</h3>
             ${team.recentMatchAvg !== null ? `
             <div class="vex-modal-grid">
               <div class="vex-modal-item">
@@ -686,12 +1052,36 @@
                 <span class="vex-modal-value vex-modal-score">${team.recentMatchMax}</span>
               </div>
               <div class="vex-modal-item">
-                <span class="vex-modal-label">Matches (Last 2 Months)</span>
+                <span class="vex-modal-label">${eventFinalized ? 'Matches at Event' : 'Recent Matches'}</span>
                 <span class="vex-modal-value">${team.recentMatchCount}</span>
               </div>
             </div>
-            ` : '<p style="color: #888;">No recent match data available.</p>'}
+            ` : `<p style="color: #888;">${eventFinalized ? 'No match data from this event.' : 'No recent match data available.'}</p>`}
           </div>
+
+          ${(() => {
+            const teamAwards = eventAwards?.get(team.team.toUpperCase()) || [];
+            if (teamAwards.length > 0) {
+              const awardsTitle = eventFinalized ? 'Awards' : 'Season Awards';
+              return `
+          <div class="vex-modal-section">
+            <h3>${awardsTitle}</h3>
+            <div class="vex-modal-awards">
+              ${teamAwards.map(award => {
+                if (eventFinalized) {
+                  return `<div class="vex-modal-award-item">🏆 ${award.name}</div>`;
+                } else {
+                  return `<div class="vex-modal-award-item">
+                    <span>🏆 ${award.name}</span>
+                    <span class="vex-award-event">${award.event}</span>
+                  </div>`;
+                }
+              }).join('')}
+            </div>
+          </div>`;
+            }
+            return '';
+          })()}
 
           ${team.recentMatches.length > 0 ? `
           <div class="vex-modal-section">
@@ -979,11 +1369,48 @@
       debug('Found', eventTeams.length, 'teams on page');
 
       if (eventTeams.length > 0) {
-        // Fetch skills data
-        try {
-          await fetchSkillsData();
-        } catch (err) {
-          error('Failed to fetch skills data:', err);
+        const competitionId = getCompetitionId();
+        let eventId = null;
+
+        // Fetch event info from API to get ID and finalization status
+        if (hasApiToken()) {
+          try {
+            const eventInfo = await fetchEventInfo(competitionId);
+            if (eventInfo) {
+              eventId = eventInfo.id;
+              eventFinalized = eventInfo.finalized;
+              debug('Event finalized:', eventFinalized, 'Event ID:', eventId);
+            }
+          } catch (err) {
+            error('Failed to fetch event info:', err);
+          }
+        }
+
+        // For finalized events, fetch event-specific data
+        // Otherwise, fetch global skills data
+        if (eventFinalized && eventId) {
+          try {
+            debug('Fetching event-specific skills for event ID:', eventId);
+            await fetchEventSkillsData(eventId);
+          } catch (err) {
+            error('Failed to fetch event-specific skills:', err);
+            await fetchSkillsData(); // Fallback to global
+          }
+
+          // Also fetch awards for finalized events
+          try {
+            debug('Fetching event awards for event ID:', eventId);
+            await fetchEventAwards(eventId);
+          } catch (err) {
+            error('Failed to fetch event awards:', err);
+          }
+        } else {
+          // Fetch global skills data for upcoming events or when no token
+          try {
+            await fetchSkillsData();
+          } catch (err) {
+            error('Failed to fetch skills data:', err);
+          }
         }
 
         // Build initial table (without match averages)
@@ -991,19 +1418,34 @@
 
         // Fetch match averages in the background and rebuild table when done
         // Only attempt if API token is configured
-        if (skillsData && hasApiToken()) {
+        if (hasApiToken()) {
           try {
+            // Fetch team IDs for all teams in one API call
+            const teamNumbers = eventTeams.map(t => t.team);
+            debug('Fetching team IDs for', teamNumbers.length, 'teams');
+            const teamIdMap = await fetchTeamIds(teamNumbers);
+
             const teamsWithIds = eventTeams.map(team => ({
               team: team.team,
-              teamId: skillsData.get(team.team)?.teamId || null
+              teamId: teamIdMap.get(team.team) || null
             })).filter(t => t.teamId);
 
-            debug('Teams with IDs:', teamsWithIds);
-            debug('Fetching match data for', teamsWithIds.length, 'teams...');
-            matchAverages = await fetchAllMatchAverages(teamsWithIds);
+            debug('Teams with IDs:', teamsWithIds.length, 'of', eventTeams.length);
+
+            // If event is finalized, only fetch matches from this event
+            // Otherwise, fetch recent matches based on settings
+            const eventCodeFilter = eventFinalized ? competitionId : null;
+            debug('Fetching match data for', teamsWithIds.length, 'teams...', eventCodeFilter ? `(event: ${eventCodeFilter})` : '(recent)');
+            matchAverages = await fetchAllMatchAverages(teamsWithIds, eventCodeFilter);
             debug('Got match averages for', matchAverages.size, 'teams');
 
-            // Rebuild table with match averages
+            // For non-finalized events, fetch season awards for all teams
+            if (!eventFinalized) {
+              debug('Fetching season awards for', teamsWithIds.length, 'teams...');
+              await fetchAllSeasonAwards(teamsWithIds);
+            }
+
+            // Rebuild table with match averages and awards
             buildEnhancedTable();
           } catch (err) {
             error('Failed to fetch match averages:', err);

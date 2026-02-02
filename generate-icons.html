@@ -11,7 +11,7 @@
   </style>
 </head>
 <body>
-  <h1>VEX Skills Enhancer Icon Generator</h1>
+  <h1>VIQRC Enhancer Icon Generator</h1>
   <p>Click the button below to generate and download the extension icons.</p>
 
   <div id="canvases"></div>
@@ -41,14 +41,11 @@
 
       if (size >= 48) {
         ctx.font = `bold ${size * 0.3}px Arial`;
-        ctx.fillText('VEX', size / 2, size * 0.35);
+        ctx.fillText('VIQRC', size / 2, size * 0.45);
 
         ctx.font = `${size * 0.15}px Arial`;
-        ctx.fillText('SKILLS', size / 2, size * 0.6);
+        ctx.fillText('ENHANCER', size / 2, size * 0.6);
 
-        // Plus sign for "enhancer"
-        ctx.font = `bold ${size * 0.25}px Arial`;
-        ctx.fillText('+', size / 2, size * 0.82);
       } else {
         // Simple "V+" for small icon
         ctx.font = `bold ${size * 0.5}px Arial`;
