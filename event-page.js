@@ -368,7 +368,7 @@
     if (!settings.apiToken) return [];
 
     try {
-      const url = `https://www.robotevents.com/api/v2/teams/${teamId}/awards?season[]=196&per_page=250`;
+      const url = `https://www.robotevents.com/api/v2/teams/${teamId}/awards?season[]=196&program[]=41&per_page=250`;
       const headers = {
         'Authorization': `Bearer ${settings.apiToken}`
       };
@@ -868,10 +868,10 @@
         : '-';
       const matchMaxDisplay = team.recentMatchMax !== null ? team.recentMatchMax : '-';
 
-      // Build awards display
+      // Build awards display (filtered by settings)
       let awardsDisplay = '-';
       if (showMatchColumns) {
-        const teamAwards = eventAwards?.get(team.team.toUpperCase()) || [];
+        const teamAwards = filterAwards(eventAwards?.get(team.team.toUpperCase()) || []);
         if (teamAwards.length > 0) {
           if (eventFinalized) {
             // For finalized events, just show trophy with award name
@@ -1060,7 +1060,7 @@
           </div>
 
           ${(() => {
-            const teamAwards = eventAwards?.get(team.team.toUpperCase()) || [];
+            const teamAwards = filterAwards(eventAwards?.get(team.team.toUpperCase()) || []);
             if (teamAwards.length > 0) {
               const awardsTitle = eventFinalized ? 'Awards' : 'Season Awards';
               return `
@@ -1123,6 +1123,67 @@
         modal.remove();
         document.removeEventListener('keydown', escHandler);
       }
+    });
+  }
+
+  // Session-only hidden awards (not persisted)
+  let hiddenAwardNames = new Set();
+
+  // Extract unique award names from eventAwards
+  function getUniqueAwardNames() {
+    const names = new Set();
+    if (eventAwards) {
+      for (const awards of eventAwards.values()) {
+        for (const award of awards) {
+          names.add(award.name);
+        }
+      }
+    }
+    return Array.from(names).sort();
+  }
+
+  // Filter awards based on session hidden set
+  function filterAwards(awards) {
+    if (!awards || awards.length === 0) {
+      return awards;
+    }
+
+    if (hiddenAwardNames.size === 0) {
+      return awards;
+    }
+
+    return awards.filter(award => !hiddenAwardNames.has(award.name));
+  }
+
+  // Populate the award filter checkboxes dynamically
+  function populateAwardFilter() {
+    const container = document.getElementById('vex-award-filter-container');
+    if (!container) return;
+
+    const awardNames = getUniqueAwardNames();
+
+    if (awardNames.length === 0) {
+      container.innerHTML = '<span style="color: #888; font-style: italic;">No awards found</span>';
+      return;
+    }
+
+    container.innerHTML = awardNames.map(name => `
+      <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+        <input type="checkbox" name="vex-award-filter" value="${name.replace(/"/g, '&quot;')}" checked>
+        <span>${name}</span>
+      </label>
+    `).join('');
+
+    // Add change listeners to immediately update the table
+    container.querySelectorAll('input[name="vex-award-filter"]').forEach(checkbox => {
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) {
+          hiddenAwardNames.delete(checkbox.value);
+        } else {
+          hiddenAwardNames.add(checkbox.value);
+        }
+        buildEnhancedTable();
+      });
     });
   }
 
@@ -1211,6 +1272,13 @@
               <span>All events</span>
             </label>
           </div>
+
+          <hr style="margin: 12px 0; border: none; border-top: 1px solid #eee;">
+
+          <label style="display: block; font-size: 12px; color: #333; margin-bottom: 8px; font-weight: 600;">Awards to Display:</label>
+          <div id="vex-award-filter-container" style="display: flex; flex-direction: column; gap: 4px; font-size: 11px; max-height: 150px; overflow-y: auto;">
+            <span style="color: #888; font-style: italic;">Loading awards...</span>
+          </div>
         </div>
 
         <button id="vex-save-settings" style="margin-top: 12px; padding: 6px 12px; background: #c41230; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; width: 100%;">Save Settings</button>
@@ -1291,6 +1359,9 @@
         clearButton.style.display = 'none';
       }
     });
+
+    // Populate award filter with any awards already loaded
+    populateAwardFilter();
   }
 
   // Capture teams and save to storage
@@ -1359,6 +1430,10 @@
   // Initialize
   async function init() {
     log('loaded');
+
+    // Log current settings on init
+    const initSettings = loadSettings();
+    debug('Initial settings - hiddenAwards:', initSettings.hiddenAwards);
 
     try {
       // Wait for the page to fully load (including dynamic content)
@@ -1447,6 +1522,9 @@
 
             // Rebuild table with match averages and awards
             buildEnhancedTable();
+
+            // Re-populate award filter now that all awards are loaded
+            populateAwardFilter();
           } catch (err) {
             error('Failed to fetch match averages:', err);
             // Table is already built without match data, so continue

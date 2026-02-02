@@ -1,9 +1,10 @@
 # VIQRC Enhanced
 
-A Chrome extension that enhances the [RobotEvents](https://www.robotevents.com) experience for VEX IQ Robotics Competition (VIQRC) with statistics, team tracking, and match data.
+A Chrome extension that enhances the [RobotEvents](https://www.robotevents.com) experience for VEX IQ Robotics Competition (VIQRC) with statistics, team tracking, match data, and awards.
 
 ## Features
 
+### Skills Standings Page
 - **Competition Team Import**: Load teams registered for a specific event by competition ID - highlights them in green
 - **Team Highlighting**: Highlight specific teams manually to track them (highlighted in yellow)
 - **Statistics Panel**: View average scores, max scores, and medians at a glance
@@ -12,6 +13,15 @@ A Chrome extension that enhances the [RobotEvents](https://www.robotevents.com) 
 - **Quick Filter**: Instantly filter the table by team number
 - **Data Export**: Export standings to CSV or JSON format
 - **Persistent Settings**: Your highlighted teams and loaded competitions are saved between sessions
+
+### Event Pages
+- **Enhanced Team Table**: Replaces the default team list with a sortable, searchable table
+- **Skills Scores**: Shows each team's combined, autonomous, and driver skills scores
+- **Match Averages**: Displays recent match performance (average and max scores)
+- **Awards Display**: Shows awards earned (event-specific for completed events, season awards for upcoming events)
+- **Award Filtering**: Dynamically filter which award types to display
+- **Team Details Modal**: Click any team row to see detailed information including match history
+- **Team Capture**: Capture registered teams to highlight them on the Skills Standings page
 
 ## Installation
 
@@ -31,11 +41,26 @@ A Chrome extension that enhances the [RobotEvents](https://www.robotevents.com) 
 4. Select the `SkillsPlugin` folder
 5. The extension is now installed!
 
-### 3. Use the Extension
+### 3. Configure API Token (Optional but Recommended)
 
+To enable match data and awards features:
+
+1. Go to [robotevents.com/api/v2](https://www.robotevents.com/api/v2) and create an API token
+2. On any event page, click the Settings gear icon
+3. Enter your API token and click Save
+4. Reload the page to see match averages and awards
+
+### 4. Use the Extension
+
+**Skills Standings Page:**
 1. Navigate to https://www.robotevents.com/robot-competitions/vex-iq-competition/standings/skills
 2. A control panel will appear on the right side of the page
 3. Use the panel to highlight teams, view stats, and export data
+
+**Event Pages:**
+1. Navigate to any VEX IQ event page (e.g., `robotevents.com/.../RE-VIQRC-25-xxxx.html`)
+2. The team table will be enhanced automatically with skills and match data
+3. Click the Settings gear to configure match history filters and award display
 
 ## Usage Guide
 
@@ -69,6 +94,27 @@ You can load multiple competitions - all their teams will be highlighted simulta
 
 **Note:** Teams that are both manually highlighted AND in a loaded competition will show a split yellow/green background.
 
+### Event Page Features
+
+**Match History Filter:**
+- Filter by events since a specific date
+- Filter by last N events
+- Show all events
+
+**Award Filtering:**
+- Checkboxes for each award type found in the data
+- Changes apply immediately (no page reload needed)
+- Filter resets on page refresh
+
+**For Completed Events:**
+- Shows skills scores and match data from that specific event
+- Displays awards earned at that event
+
+**For Upcoming Events:**
+- Shows global skills rankings
+- Displays recent match averages based on filter settings
+- Shows season awards earned at other events
+
 ### View Statistics
 
 The Statistics section shows:
@@ -94,21 +140,24 @@ Type in the filter box to instantly show only teams matching your search.
 
 ```
 SkillsPlugin/
-├── manifest.json      # Extension configuration
-├── content.js         # Main enhancement script
-├── styles.css         # Styling for the panel and table additions
+├── manifest.json       # Extension configuration
+├── content.js          # Skills standings page enhancements
+├── event-page.js       # Event page enhancements
+├── styles.css          # Styles for skills standings page
+├── event-styles.css    # Styles for event pages
 ├── generate-icons.html # Tool to generate extension icons
 ├── icons/
-│   ├── icon16.png     # Small icon (toolbar)
-│   ├── icon48.png     # Medium icon
-│   └── icon128.png    # Large icon (store/management)
-└── README.md          # This file
+│   ├── icon16.png      # Small icon (toolbar)
+│   ├── icon48.png      # Medium icon
+│   └── icon128.png     # Large icon (store/management)
+├── CLAUDE.md           # Development guidelines for AI assistants
+└── README.md           # This file
 ```
 
 ## Troubleshooting
 
 **Extension doesn't appear on the page:**
-- Make sure you're on the correct URL: `robotevents.com/robot-competitions/vex-iq-competition/standings/skills`
+- Make sure you're on the correct URL pattern
 - Try refreshing the page
 - Check that the extension is enabled in `chrome://extensions/`
 
@@ -120,14 +169,26 @@ SkillsPlugin/
 - The extension uses localStorage; ensure it's not blocked
 - Check browser console for errors
 
+**Match data not loading:**
+- Ensure you have configured an API token in Settings
+- Check that the token is valid at robotevents.com/api/v2
+- API rate limits may cause temporary failures (the extension retries automatically)
+
+**Awards not showing:**
+- Awards require an API token
+- For upcoming events, awards show season-wide achievements
+- For completed events, awards show event-specific achievements
+
 ## Development
 
 To modify the extension:
 
-1. Edit the source files (`content.js`, `styles.css`)
+1. Edit the source files (`content.js`, `event-page.js`, `styles.css`, `event-styles.css`)
 2. Go to `chrome://extensions/`
 3. Click the refresh icon on the extension card
-4. Reload the standings page to see changes
+4. Reload the page to see changes
+
+See `CLAUDE.md` for development guidelines and technical details.
 
 ## License
 
