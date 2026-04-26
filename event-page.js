@@ -15,6 +15,104 @@
   const debug = (...args) => CONFIG.debug && console.log(`${CONFIG.name} [DEBUG] -`, ...args);
   const error = (...args) => console.error(`${CONFIG.name} -`, ...args);
 
+  // --- Cache System ---
+  const CACHE_KEY = 'vex-skills-enhancer-cache';
+  const CACHE_TTL_MS = 5 * 24 * 60 * 60 * 1000; // 5 days
+
+  function getCacheStore() {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function saveCacheStore(store) {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(store));
+    } catch (e) {
+      debug('Failed to save cache:', e);
+    }
+  }
+
+  function cacheGet(key) {
+    const store = getCacheStore();
+    const entry = store[key];
+    if (!entry) return null;
+    if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+      delete store[key];
+      saveCacheStore(store);
+      return null;
+    }
+    debug('Cache hit:', key);
+    return entry.data;
+  }
+
+  function cacheSet(key, data) {
+    const store = getCacheStore();
+    store[key] = { data, timestamp: Date.now() };
+    saveCacheStore(store);
+    debug('Cache set:', key);
+  }
+
+  function cacheInvalidate(key) {
+    const store = getCacheStore();
+    delete store[key];
+    saveCacheStore(store);
+    debug('Cache invalidated:', key);
+  }
+
+  function cacheInvalidatePattern(pattern) {
+    const store = getCacheStore();
+    let count = 0;
+    for (const key of Object.keys(store)) {
+      if (key.includes(pattern)) {
+        delete store[key];
+        count++;
+      }
+    }
+    saveCacheStore(store);
+    debug('Cache invalidated', count, 'entries matching:', pattern);
+  }
+
+  function cacheClearAll() {
+    localStorage.removeItem(CACHE_KEY);
+    debug('Cache cleared');
+  }
+
+  // --- Loading Overlay ---
+  function showLoadingOverlay(message = 'Loading team data...') {
+    isLoading = true;
+    const container = document.getElementById('vex-event-table-container');
+    if (!container) return;
+
+    // Don't duplicate
+    if (container.querySelector('.vex-loading-overlay')) return;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'vex-loading-overlay';
+    overlay.innerHTML = `
+      <div class="vex-loading-content">
+        <div class="vex-loading-spinner"></div>
+        <span class="vex-loading-message">${message}</span>
+      </div>
+    `;
+    container.style.position = 'relative';
+    container.appendChild(overlay);
+  }
+
+  function updateLoadingMessage(message) {
+    const el = document.querySelector('.vex-loading-message');
+    if (el) el.textContent = message;
+  }
+
+  function hideLoadingOverlay() {
+    isLoading = false;
+    const overlay = document.querySelector('.vex-loading-overlay');
+    if (overlay) overlay.remove();
+  }
+
   // Fetch with retry and exponential backoff for rate limiting
   async function fetchWithRetry(url, options = {}, maxRetries = 3) {
     let lastError;
@@ -63,6 +161,26 @@
   let eventFinalized = false; // Whether the event has already occurred
   let sortColumn = 'score';
   let sortDirection = 'desc';
+  let selectedDivision = ''; // Division filter (Worlds only)
+  let isLoading = false;     // Whether data is still being fetched
+
+  // Division assignments for events with multiple divisions
+  const EVENT_DIVISIONS = {
+    'RE-VIQRC-26-4028': {
+      "Spirit Division": ["78X", "183A", "252W", "478A", "639A", "836B", "921A", "985D", "1065D", "1336C", "1729R", "2035A", "2281B", "2501X", "2626T", "2831D", "3078B", "3287A", "3383F", "3722H", "4028X", "4469A", "4815B", "5567A", "6174B", "6333B", "6565N", "7702A", "8269A", "8588X", "9137A", "9296A", "9826K", "10515B", "10946F", "11110A", "11686X", "13205A", "13952C", "15153X", "17035D", "17760K", "19375B", "20616B", "21549B", "22903C", "24610B", "27493X", "29081C", "31337B", "31851B", "34543G", "36409C", "39401A", "41400C", "44408E", "45318A", "46000A", "46168A", "47998A", "48251D", "50491F", "54567A", "55821C", "57069C", "58312G", "60027B", "63330Z", "65990B", "70484D", "72777A", "74778A", "76782A", "78151C", "79089E", "80100A", "81777T", "82312A", "84732C", "88299A", "91416Y", "92855J", "95014X", "99806B"],
+      "Research Division": ["47S", "166V", "243C", "252A", "435B", "595Y", "836A", "846B", "969A", "1065C", "1336A", "1695S", "1948A", "2205H", "2470Z", "2625D", "2820J", "3030A", "3211H", "3383D", "3722G", "4010S", "4270A", "4815A", "5491M", "6114A", "6265A", "6512C", "7323W", "8128Z", "8588A", "8882H", "9233G", "9666F", "10452Y", "10851F", "11108B", "11686B", "12368B", "13888A", "15104C", "16885A", "17593V", "18778E", "20352C", "21549A", "22320A", "24250Y", "27112B", "28952G", "30041B", "31655A", "34107C", "36409A", "37991E", "40693P", "44100D", "44844K", "45908C", "46032D", "48212C", "50284C", "54037F", "55580B", "56721E", "58130W", "60011D", "63273A", "65165E", "70270A", "72065X", "74756C", "75640A", "77806A", "78843A", "80066B", "81192Z", "81880A", "84732B", "88180C", "91361A", "92855E", "94001B", "99396B"],
+      "Design Division": ["47A", "126Z", "243E", "422A", "567A", "791A", "839D", "952S", "1065B", "1216A", "1502B", "1916A", "2205B", "2420A", "2623S", "2820D", "2999H", "3211G", "3373A", "3686D", "3722Y", "4250S", "4751G", "5280B", "6046A", "6210X", "6512B", "7222C", "8035A", "8432B", "8866X", "9209R", "9619A", "9964E", "10700Z", "11108A", "11471B", "12357X", "13863J", "14581A", "16346A", "17489A", "18677A", "20259E", "21136A", "22222B", "24250P", "26277E", "28595A", "29627Y", "31614C", "33363C", "36238A", "37837B", "39920B", "41927W", "44844E", "45544A", "46032C", "47747V", "49131F", "50491C", "52152A", "55508C", "55902B", "58130G", "58852B", "61317X", "64932A", "67294B", "72065B", "74756B", "75172X", "77773P", "78380H", "79755C", "80821C", "81777Z", "84063C", "87853A", "90418B", "92640A", "93601E", "99144A"],
+      "Innovate Division": ["84B", "240A", "243J", "276C", "478C", "727H", "839A", "929V", "1024G", "1087X", "1356A", "1828A", "2048A", "2285D", "2585A", "2810S", "2831F", "3088R", "3332E", "3453D", "3722U", "4079B", "4526A", "4854B", "5679A", "6177D", "6441A", "6671K", "7991B", "8366A", "8818N", "9156A", "9408A", "9933X", "10622A", "11064A", "11263X", "12242A", "13765C", "14180A", "15153Z", "17074B", "17890E", "19601A", "20698X", "21549F", "23761B", "25425A", "27519A", "29627F", "31337W", "32092A", "34802U", "36832C", "39404B", "41400M", "44632S", "45318B", "46032A", "46587A", "48495C", "50491K", "54965M", "55821E", "57775A", "58387A", "60141A", "64330A", "66799V", "71777A", "72777B", "74801F", "77298A", "78151N", "79420X", "80505A", "81777U", "82717K", "85202M", "88700E", "91445E", "93558B", "95133F"],
+      "Opportunity Division": ["36C", "92E", "243D", "349T", "499A", "770Z", "839B", "952E", "1025A", "1114A", "1418Z", "1901B", "2166B", "2367F", "2613A", "2820A", "2929A", "3182A", "3369B", "3668X", "3722X", "4224A", "4613A", "5004W", "5813H", "6177G", "6441B", "6699C", "8009A", "8395A", "8818S", "9200B", "9532B", "9937A", "10673J", "11086A", "11289B", "12248A", "13789X", "14335X", "15167B", "17467A", "18386F", "19920A", "21133A", "21555C", "24250E", "25991A", "28134G", "29627W", "31408A", "32901A", "35249A", "37311C", "39920A", "41400R", "44713A", "45318D", "46032B", "47400J", "48952F", "52111A", "55508B", "55883B", "58072C", "58387E", "60355A", "64443S", "66990Z", "71843A", "73447A", "75035M", "77612C", "78258A", "79755A", "80608A", "81777W", "83920A", "86752A", "90007A", "92633A", "93558Z", "96933A"],
+    },
+    'RE-VIQRC-26-4029': {
+      "Arts Division": ["35D", "182A", "243A", "286A", "390G", "478T", "629Y", "821D", "937B", "1063E", "1100S", "1227D", "1512X", "1810A", "2244B", "2425R", "2668B", "2783J", "3125M", "3439C", "3708C", "4183E", "5004S", "5164A", "5571K", "5988X", "6177A", "6440C", "6593C", "6677G", "6885B", "7799B", "8299B", "8873B", "9066A", "9919A", "10404F", "10511A", "11180B", "13200A", "13722X", "16677A", "17593X", "18493B", "18823M", "20160M", "21217A", "23011A", "25705B", "26989B", "29544C", "31186C", "34107G", "34543E", "37064D", "38413A", "42968Y", "46140A", "49466A", "51451D", "52710A", "54445T", "58071A", "59365B", "60600B", "62130D", "63122A", "66775A", "68039V", "70510F", "72777F", "76896A", "80292D", "81777A", "83920T", "85287A", "88299B", "90222B", "92964B", "95133G", "96712B", "98016B", "99174A"],
+      "Engineering Division": ["28T", "138Z", "220X", "279G", "331W", "478M", "618X", "812A", "861A", "1059A", "1100E", "1216D", "1431A", "1779A", "2166A", "2410M", "2633B", "2737A", "3030D", "3439B", "3668C", "3988S", "4751A", "5147B", "5559C", "5981B", "6104C", "6333H", "6593B", "6656F", "6855B", "7553N", "8282X", "8866K", "8988P", "9699P", "10142A", "10459A", "11086B", "12368C", "13650A", "16346R", "17222A", "18000B", "18823A", "20058C", "21121A", "22884A", "25425B", "26862B", "29032E", "31186A", "34035J", "34458Z", "35640C", "37991M", "42403A", "44632N", "47721K", "50316F", "52654D", "53976A", "58051A", "58923A", "60065A", "62130B", "63041A", "66767A", "67846J", "69699A", "72550A", "74866A", "80020A", "81625S", "83187G", "84401C", "88180Y", "90048D", "92633B", "95059A", "96627A", "97793A", "98999Y", "99561C"],
+      "Math Division": ["97A", "199R", "243G", "290R", "428J", "478Z", "689A", "826A", "985M", "1069H", "1132C", "1243A", "1545M", "1932C", "2276A", "2547B", "2675B", "2988A", "3207F", "3439W", "3931C", "4250X", "5017C", "5164C", "5585D", "6039B", "6181A", "6576A", "6632A", "6699U", "6885X", "7919A", "8588B", "8877Y", "9177A", "9965E", "10404G", "10525D", "11860G", "13282A", "13722Z", "16688K", "17750A", "18533A", "18963A", "20253A", "21302B", "23418D", "25757B", "27093A", "29766T", "31837K", "34202D", "34802J", "37500B", "38792A", "43058E", "46384C", "49466C", "51717R", "53065E", "55164C", "58071B", "59713D", "60666A", "62536A", "63122D", "67052H", "68262A", "71030G", "73429A", "77710A", "80602B", "81777X", "83988C", "85365B", "89998Z", "90245D", "92981A", "95133X", "96793B", "98854A", "99265B"],
+      "Science Division": ["15B", "126F", "220A", "243F", "252G", "295Z", "473A", "567B", "804A", "839X", "985N", "1097C", "1216B", "1295X", "1555B", "1933M", "2305D", "2613E", "2675C", "2999F", "3321A", "3668A", "3931D", "4250Y", "5017F", "5255A", "5588Z", "6039D", "6210R", "6576C", "6632D", "6780A", "7231G", "8030A", "8672B", "8882A", "9199A", "9965X", "10432G", "10692A", "12022C", "13282B", "14581M", "16781R", "17890D", "18697A", "19901A", "20259R", "22020Y", "25039A", "26041A", "27199A", "30707A", "32112A", "34362H", "34998J", "37500C", "40693R", "43277A", "46658A", "50108A", "52106B", "53919A", "55909D", "58312D", "59813B", "60742A", "62666A", "65950B", "67052N", "68888A", "71221B", "73447C", "78454W", "81020A", "81777Y", "84212E", "85968A", "90000A", "91416X", "93557G", "96000A", "96833A", "98854C", "99396D"],
+      "Technology Division": ["15C", "126G", "220C", "243K", "252S", "331S", "478J", "603X", "804B", "839Y", "986A", "1100A", "1216C", "1354A", "1729V", "2033A", "2373V", "2626X", "2675F", "2999K", "3437A", "3668B", "3988D", "4440A", "5090A", "5280N", "5876A", "6039F", "6333C", "6593A", "6651C", "6808X", "7427A", "8181N", "8696A", "8882B", "9452M", "10014C", "10452D", "10692E", "12059G", "13519B", "15034C", "16894B", "18000A", "18721D", "19968A", "20267B", "22524M", "25073A", "26862A", "28595T", "30707B", "32356B", "34458D", "35640A", "37500E", "40701A", "43631M", "47721D", "50298B", "52510A", "53919B", "57290D", "58766B", "60011E", "61593S", "62762A", "66396B", "67352D", "69000E", "71711B", "74756F", "78682C", "81500A", "82823A", "84218A", "86273C", "90048C", "91429X", "93557X", "96000S", "96902C", "98854E", "99396M"],
+    }
+  };
 
   // Extract competition ID from URL
   function getCompetitionId() {
@@ -95,6 +213,10 @@
       return null;
     }
 
+    const cacheKey = `event_info_${sku}`;
+    const cached = cacheGet(cacheKey);
+    if (cached) return cached;
+
     try {
       const url = `https://www.robotevents.com/api/v2/events?sku[]=${encodeURIComponent(sku)}`;
       debug('Fetching event info from:', url);
@@ -115,13 +237,15 @@
       if (events.length > 0) {
         const event = events[0];
         debug('Found event:', event.id, 'finalized:', event.awards_finalized);
-        return {
+        const result = {
           id: event.id,
           name: event.name,
           finalized: event.awards_finalized || false,
           start: event.start,
           end: event.end
         };
+        cacheSet(cacheKey, result);
+        return result;
       }
 
       debug('No event found for SKU:', sku);
@@ -225,6 +349,14 @@
       return false;
     }
 
+    const cacheKey = `event_skills_${eventId}`;
+    const cached = cacheGet(cacheKey);
+    if (cached) {
+      skillsData = new Map(Object.entries(cached));
+      debug('Loaded event skills from cache for', skillsData.size, 'teams');
+      return skillsData.size > 0;
+    }
+
     try {
       skillsData = new Map();
 
@@ -298,6 +430,11 @@
         }
       }
 
+      // Cache the skills data
+      if (skillsData.size > 0) {
+        cacheSet(cacheKey, Object.fromEntries(skillsData));
+      }
+
       return skillsData.size > 0;
     } catch (err) {
       error('Failed to fetch event skills:', err);
@@ -313,6 +450,14 @@
     if (!settings.apiToken) {
       debug('No API token configured, skipping event awards fetch');
       return false;
+    }
+
+    const cacheKey = `event_awards_${eventId}`;
+    const cached = cacheGet(cacheKey);
+    if (cached) {
+      eventAwards = new Map(Object.entries(cached));
+      debug('Loaded event awards from cache for', eventAwards.size, 'teams');
+      return eventAwards.size > 0;
     }
 
     try {
@@ -353,6 +498,12 @@
       });
 
       debug('Processed awards for', eventAwards.size, 'teams');
+
+      // Cache the awards data
+      if (eventAwards.size > 0) {
+        cacheSet(cacheKey, Object.fromEntries(eventAwards));
+      }
+
       return eventAwards.size > 0;
     } catch (err) {
       error('Failed to fetch event awards:', err);
@@ -366,6 +517,10 @@
 
     const settings = loadSettings();
     if (!settings.apiToken) return [];
+
+    const cacheKey = `team_awards_${teamId}`;
+    const cached = cacheGet(cacheKey);
+    if (cached) return cached;
 
     try {
       const url = `https://www.robotevents.com/api/v2/teams/${teamId}/awards?season[]=196&program[]=41&per_page=250`;
@@ -382,12 +537,17 @@
       const data = await response.json();
       const awards = data.data || [];
 
-      return awards.map(award => ({
+      const result = awards.map(award => ({
         name: award.title || 'Award',
         event: award.event?.name || 'Unknown Event',
         eventCode: award.event?.code || '',
         order: award.order || 999
       }));
+
+      if (result.length > 0) {
+        cacheSet(cacheKey, result);
+      }
+      return result;
     } catch (err) {
       debug('Failed to fetch team awards:', err);
       return [];
@@ -395,7 +555,8 @@
   }
 
   // Fetch season awards for all teams (with rate limiting)
-  async function fetchAllSeasonAwards(teams) {
+  // progressiveCallback is called after each batch that hits the network
+  async function fetchAllSeasonAwards(teams, progressiveCallback = null) {
     eventAwards = new Map();
 
     if (!hasApiToken()) {
@@ -408,13 +569,17 @@
       const batchSize = 5;
       for (let i = 0; i < teams.length; i += batchSize) {
         const batch = teams.slice(i, i + batchSize);
+        let batchHadFetch = false;
         const promises = batch.map(async team => {
           if (team.teamId) {
             try {
+              const cacheKey = `team_awards_${team.teamId}`;
+              const wasCached = !!cacheGet(cacheKey);
               const awards = await fetchTeamSeasonAwards(team.teamId);
               if (awards.length > 0) {
                 eventAwards.set(team.team.toUpperCase(), awards);
               }
+              if (!wasCached) batchHadFetch = true;
             } catch (err) {
               debug('Error fetching awards for team', team.team, err);
             }
@@ -422,8 +587,12 @@
         });
         await Promise.all(promises);
 
-        // Small delay between batches
-        if (i + batchSize < teams.length) {
+        if (batchHadFetch && progressiveCallback) {
+          progressiveCallback();
+        }
+
+        // Only delay between batches if we actually made network requests
+        if (batchHadFetch && i + batchSize < teams.length) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
@@ -436,6 +605,14 @@
 
   // Fetch skills data from API for both grade levels (global standings)
   async function fetchSkillsData() {
+    const cacheKey = 'global_skills_data';
+    const cached = cacheGet(cacheKey);
+    if (cached) {
+      skillsData = new Map(Object.entries(cached));
+      debug('Loaded global skills from cache:', skillsData.size, 'teams');
+      return skillsData.size > 0;
+    }
+
     skillsData = new Map();
 
     // Fetch both Elementary and Middle School data
@@ -484,6 +661,11 @@
       }
     }
 
+    // Cache the results
+    if (skillsData.size > 0) {
+      cacheSet(cacheKey, Object.fromEntries(skillsData));
+    }
+
     debug('Total teams in skillsData:', skillsData.size);
     return skillsData.size > 0;
   }
@@ -504,12 +686,30 @@
       return new Map();
     }
 
+    // Check cache for individual team IDs, fetch only missing ones
+    const teamIdMap = new Map();
+    const uncachedNumbers = [];
+
+    for (const num of teamNumbers) {
+      const cached = cacheGet(`team_id_${num.toUpperCase()}`);
+      if (cached) {
+        teamIdMap.set(num.toUpperCase(), cached);
+      } else {
+        uncachedNumbers.push(num);
+      }
+    }
+
+    if (uncachedNumbers.length === 0) {
+      debug('All team IDs found in cache:', teamIdMap.size);
+      return teamIdMap;
+    }
+
     try {
-      // Build query string with all team numbers
+      // Build query string with uncached team numbers only
       // program[]=41 limits to VEX IQ teams only
-      const numberParams = teamNumbers.map(num => `number[]=${encodeURIComponent(num)}`).join('&');
+      const numberParams = uncachedNumbers.map(num => `number[]=${encodeURIComponent(num)}`).join('&');
       const url = `https://www.robotevents.com/api/v2/teams?${numberParams}&program[]=41&season[]=196&per_page=250`;
-      debug('Fetching team IDs from:', url);
+      debug('Fetching team IDs from:', url, `(${uncachedNumbers.length} uncached of ${teamNumbers.length})`);
 
       const headers = {
         'Authorization': `Bearer ${settings.apiToken}`
@@ -518,19 +718,19 @@
 
       if (!response.ok) {
         debug('Failed to fetch team IDs - status:', response.status);
-        return new Map();
+        return teamIdMap;
       }
 
       const data = await response.json();
       const teams = data.data || [];
       debug('Received', teams.length, 'teams from API');
 
-      // Build map of team number -> team ID
-      const teamIdMap = new Map();
+      // Add to map and cache individually
       teams.forEach(team => {
         const teamNum = team.number?.toUpperCase();
         if (teamNum && team.id) {
           teamIdMap.set(teamNum, team.id);
+          cacheSet(`team_id_${teamNum}`, team.id);
         }
       });
 
@@ -538,7 +738,7 @@
       return teamIdMap;
     } catch (err) {
       error('Failed to fetch team IDs:', err);
-      return new Map();
+      return teamIdMap;
     }
   }
 
@@ -552,6 +752,10 @@
       debug('No API token configured, skipping match fetch');
       return null;
     }
+
+    const cacheKey = `team_matches_${teamId}_${eventCodeFilter || 'recent'}`;
+    const cached = cacheGet(cacheKey);
+    if (cached) return cached;
 
     try {
       const url = `https://www.robotevents.com/api/v2/teams/${teamId}/matches?season%5B%5D=196&per_page=250`;
@@ -689,12 +893,15 @@
       debug('Match count:', matchCount, 'Total score:', totalScore, 'Max:', maxScore, 'Avg:', matchCount > 0 ? totalScore / matchCount : 0);
       if (matchCount === 0) return null;
 
-      return {
+      const result = {
         average: Math.round(totalScore / matchCount),
         max: maxScore,
         matchCount: matchCount,
         matches: matchList
       };
+
+      cacheSet(cacheKey, result);
+      return result;
     } catch (err) {
       error('Failed to fetch match data for team', teamId, err);
       return null;
@@ -703,13 +910,14 @@
 
   // Fetch match averages for all teams (with rate limiting)
   // If eventCode is provided, only include matches from that event
-  async function fetchAllMatchAverages(teams, eventCode = null) {
-    const matchAverages = new Map();
+  // progressiveCallback is called after each batch so the UI can update
+  async function fetchAllMatchAverages(teams, eventCode = null, progressiveCallback = null) {
+    const results = new Map();
 
     // Skip if no API token configured
     if (!hasApiToken()) {
       debug('No API token configured, skipping match data fetch');
-      return matchAverages;
+      return results;
     }
 
     try {
@@ -717,23 +925,31 @@
       const batchSize = 5;
       for (let i = 0; i < teams.length; i += batchSize) {
         const batch = teams.slice(i, i + batchSize);
+        let batchHadFetch = false;
         const promises = batch.map(async team => {
           if (team.teamId) {
             try {
+              const cacheKey = `team_matches_${team.teamId}_${eventCode || 'recent'}`;
+              const wasCached = !!cacheGet(cacheKey);
               const result = await fetchMatchData(team.teamId, eventCode);
               if (result) {
-                matchAverages.set(team.team, result);
+                results.set(team.team, result);
               }
+              if (!wasCached) batchHadFetch = true;
             } catch (err) {
               debug('Error fetching match data for team', team.team, err);
-              // Continue with other teams
             }
           }
         });
         await Promise.all(promises);
 
-        // Small delay between batches
-        if (i + batchSize < teams.length) {
+        // Update UI progressively after batches that hit the network
+        if (batchHadFetch && progressiveCallback) {
+          progressiveCallback(results);
+        }
+
+        // Only delay between batches if we actually made network requests
+        if (batchHadFetch && i + batchSize < teams.length) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
@@ -741,7 +957,7 @@
       error('Error in fetchAllMatchAverages:', err);
     }
 
-    return matchAverages;
+    return results;
   }
 
   // Calculate percentile
@@ -776,8 +992,19 @@
       }
     }
 
+    // Check if this event has divisions
+    const competitionId = getCompetitionId();
+    const divisions = competitionId ? EVENT_DIVISIONS[competitionId] : null;
+    const divisionNames = divisions ? Object.keys(divisions) : [];
+
+    // Build a Set of team numbers for the selected division
+    let divisionTeamSet = null;
+    if (divisions && selectedDivision && divisions[selectedDivision]) {
+      divisionTeamSet = new Set(divisions[selectedDivision].map(t => t.toUpperCase()));
+    }
+
     // Merge event teams with skills data and match averages
-    const mergedData = eventTeams.map(team => {
+    let mergedData = eventTeams.map(team => {
       const skills = skillsData?.get(team.team) || {};
       const matchAvg = matchAverages?.get(team.team) || null;
       return {
@@ -796,6 +1023,11 @@
         recentMatches: matchAvg?.matches || []
       };
     });
+
+    // Filter by division if selected
+    if (divisionTeamSet) {
+      mergedData = mergedData.filter(t => divisionTeamSet.has(t.team.toUpperCase()));
+    }
 
     // Sort data
     mergedData.sort((a, b) => {
@@ -830,11 +1062,27 @@
       : 'Match Avg';
     const maxLabel = eventFinalized ? 'Event Max' : 'Match Max';
 
+    // Build division selector HTML (only for events with divisions)
+    let divisionSelectHtml = '';
+    if (divisionNames.length > 0) {
+      const options = divisionNames.map(name =>
+        `<option value="${name}" ${selectedDivision === name ? 'selected' : ''}>${name}</option>`
+      ).join('');
+      divisionSelectHtml = `
+        <select id="vex-division-select" class="vex-division-select">
+          <option value="">All Divisions</option>
+          ${options}
+        </select>
+      `;
+    }
+
     // Build table
     let html = `
       <div class="vex-event-controls">
         <input type="text" id="vex-event-search" placeholder="Search teams..." />
-        <span class="vex-event-count">${mergedData.length} teams (${teamsWithScores} with skills scores)${eventFinalized ? ' - Event Completed' : ''}</span>
+        ${divisionSelectHtml}
+        <span class="vex-event-count">${mergedData.length} teams (${teamsWithScores} with skills scores)${eventFinalized ? ' - Event Completed' : ''}${selectedDivision ? ` - ${selectedDivision}` : ''}</span>
+        <button id="vex-clear-cache-btn" class="vex-clear-cache-btn" title="Clear cached data and reload from API">&#x21bb; Refresh All</button>
       </div>
       <table class="vex-event-table">
         <thead>
@@ -932,6 +1180,20 @@
 
     container.innerHTML = html;
 
+    // Re-apply loading overlay if still loading (innerHTML wipes it)
+    if (isLoading) {
+      container.style.position = 'relative';
+      const overlay = document.createElement('div');
+      overlay.className = 'vex-loading-overlay';
+      overlay.innerHTML = `
+        <div class="vex-loading-content">
+          <div class="vex-loading-spinner"></div>
+          <span class="vex-loading-message">Loading team data...</span>
+        </div>
+      `;
+      container.appendChild(overlay);
+    }
+
     // Store merged data for modal
     container._mergedData = mergedData;
     container._allScores = allScores;
@@ -949,6 +1211,12 @@
       });
       container.querySelector('.vex-event-count').textContent =
         filter ? `${visibleCount} of ${mergedData.length} teams` : `${mergedData.length} teams (${teamsWithScores} with skills scores)`;
+    });
+
+    // Setup division filter
+    document.getElementById('vex-division-select')?.addEventListener('change', (e) => {
+      selectedDivision = e.target.value;
+      buildEnhancedTable();
     });
 
     // Setup sorting
@@ -975,6 +1243,17 @@
       });
     });
 
+    // Setup clear cache button
+    document.getElementById('vex-clear-cache-btn')?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      btn.textContent = '⟳ Refreshing...';
+      cacheClearAll();
+      // Reload the page to re-fetch everything fresh
+      window.location.reload();
+    });
+
     debug('Table built with', mergedData.length, 'teams');
   }
 
@@ -990,7 +1269,10 @@
       <div class="vex-modal">
         <div class="vex-modal-header">
           <h2><a href="https://www.robotevents.com/teams/VIQRC/${team.team}" target="_blank">${team.team} - ${team.teamName || 'Unknown'}</a></h2>
-          <button class="vex-modal-close">&times;</button>
+          <div class="vex-modal-header-actions">
+            <button class="vex-refresh-team-btn" title="Refresh this team's data (clears cache)">&#x21bb; Refresh</button>
+            <button class="vex-modal-close">&times;</button>
+          </div>
         </div>
         <div class="vex-modal-body">
           <div class="vex-modal-section">
@@ -1115,6 +1397,15 @@
     document.body.appendChild(modal);
 
     modal.querySelector('.vex-modal-close').addEventListener('click', () => modal.remove());
+    modal.querySelector('.vex-refresh-team-btn').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      btn.textContent = '⟳ Refreshing...';
+      await refreshTeamData(team.team, team.teamId);
+      modal.remove();
+      buildEnhancedTable();
+    });
     modal.addEventListener('click', (e) => {
       if (e.target === modal) modal.remove();
     });
@@ -1124,6 +1415,43 @@
         document.removeEventListener('keydown', escHandler);
       }
     });
+  }
+
+  // Refresh a single team's cached data
+  async function refreshTeamData(teamNumber, teamId) {
+    const teamUpper = teamNumber.toUpperCase();
+    debug('Refreshing data for team:', teamUpper, 'id:', teamId);
+
+    // Invalidate all cache entries for this team
+    if (teamId) {
+      cacheInvalidate(`team_matches_${teamId}_recent`);
+      cacheInvalidate(`team_matches_${teamId}_${getCompetitionId() || 'recent'}`);
+      cacheInvalidate(`team_awards_${teamId}`);
+      cacheInvalidate(`team_id_${teamUpper}`);
+    }
+
+    // Re-fetch match data
+    if (teamId && hasApiToken()) {
+      const eventCodeFilter = eventFinalized ? getCompetitionId() : null;
+      const result = await fetchMatchData(teamId, eventCodeFilter);
+      if (result) {
+        if (!matchAverages) matchAverages = new Map();
+        matchAverages.set(teamUpper, result);
+      }
+
+      // Re-fetch awards
+      if (eventFinalized) {
+        // Awards are event-level, no per-team invalidation needed for finalized
+      } else {
+        const awards = await fetchTeamSeasonAwards(teamId);
+        if (awards.length > 0) {
+          if (!eventAwards) eventAwards = new Map();
+          eventAwards.set(teamUpper, awards);
+        }
+      }
+    }
+
+    log('Refreshed data for team', teamUpper);
   }
 
   // Session-only hidden awards (not persisted)
@@ -1488,15 +1816,20 @@
           }
         }
 
-        // Build initial table (without match averages)
+        // Build table immediately with whatever data we have (skills + cached awards)
+        // Show overlay if we still need to fetch per-team data
+        if (hasApiToken()) {
+          showLoadingOverlay('Loading team data...');
+        }
         buildEnhancedTable();
 
-        // Fetch match averages in the background and rebuild table when done
-        // Only attempt if API token is configured
+        // Now progressively fetch per-team data (matches, awards)
+        // Cached results return instantly; only network fetches cause delays
         if (hasApiToken()) {
           try {
-            // Fetch team IDs for all teams in one API call
+            // Fetch team IDs (mostly cached after first visit)
             const teamNumbers = eventTeams.map(t => t.team);
+            updateLoadingMessage(`Resolving ${teamNumbers.length} teams...`);
             debug('Fetching team IDs for', teamNumbers.length, 'teams');
             const teamIdMap = await fetchTeamIds(teamNumbers);
 
@@ -1507,27 +1840,38 @@
 
             debug('Teams with IDs:', teamsWithIds.length, 'of', eventTeams.length);
 
-            // If event is finalized, only fetch matches from this event
-            // Otherwise, fetch recent matches based on settings
             const eventCodeFilter = eventFinalized ? competitionId : null;
+
+            // Progressive callback rebuilds the table as data arrives
+            let matchesLoaded = 0;
+            const onProgress = (results) => {
+              if (results) {
+                matchAverages = results;
+                matchesLoaded = results.size;
+              }
+              updateLoadingMessage(`Loading matches... ${matchesLoaded} / ${teamsWithIds.length} teams`);
+              buildEnhancedTable();
+            };
+
+            updateLoadingMessage(`Loading matches... 0 / ${teamsWithIds.length} teams`);
             debug('Fetching match data for', teamsWithIds.length, 'teams...', eventCodeFilter ? `(event: ${eventCodeFilter})` : '(recent)');
-            matchAverages = await fetchAllMatchAverages(teamsWithIds, eventCodeFilter);
+            matchAverages = await fetchAllMatchAverages(teamsWithIds, eventCodeFilter, onProgress);
             debug('Got match averages for', matchAverages.size, 'teams');
 
             // For non-finalized events, fetch season awards for all teams
             if (!eventFinalized) {
+              updateLoadingMessage('Loading season awards...');
               debug('Fetching season awards for', teamsWithIds.length, 'teams...');
-              await fetchAllSeasonAwards(teamsWithIds);
+              await fetchAllSeasonAwards(teamsWithIds, () => buildEnhancedTable());
             }
 
-            // Rebuild table with match averages and awards
+            // All done — remove overlay and do final rebuild
+            hideLoadingOverlay();
             buildEnhancedTable();
-
-            // Re-populate award filter now that all awards are loaded
             populateAwardFilter();
           } catch (err) {
             error('Failed to fetch match averages:', err);
-            // Table is already built without match data, so continue
+            hideLoadingOverlay();
           }
         }
       }
